@@ -3,7 +3,10 @@ Based on NVIDIA OptiX7.3 Frameworks.
 ## Building under Windows
 
 - Install Required Packages
-	- see above: CUDA 10.1 or 11.3, OptiX 7.3 SDK, latest driver, and cmake
+	- CUDA 10.1 or 11.3
+	- OptiX 7.3 SDK
+	- latest driver
+	- cmake
 - Download or clone the source repository
 
 ### Visual Studio
