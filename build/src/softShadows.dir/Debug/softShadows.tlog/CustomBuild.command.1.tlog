@@ -1,0 +1,36 @@
+^D:\GIT\CG PROJECT\SRC\DEVICEPROGRAMS.CU
+setlocal
+cd "D:\git\CG project\build\src\CMakeFiles\cuda_compile_ptx_1.dir"
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory "D:/git/CG project/build/src"
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -D verbose:BOOL=OFF -D "CCBIN:PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools/MSVC/14.26.28801/bin/Hostx64/x64" -D build_configuration:STRING=Debug -D "generated_file:STRING=D:/git/CG project/build/src/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx" -D "generated_cubin_file:STRING=D:/git/CG project/build/src/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.cubin.txt" -P "D:/git/CG project/build/src/CMakeFiles/cuda_compile_ptx_1.dir//cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.Debug.cmake"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\GIT\CG PROJECT\BUILD\CMAKEFILES\E7635FA94983A7DFB2A0BD6678242154\CUDA_COMPILE_PTX_1_GENERATED_DEVICEPROGRAMS.CU.PTX_EMBEDDED.C.RULE
+setlocal
+"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin\bin2c.exe" -c --padd 0 --type char --name embedded_ptx_code "D:/git/CG project/build/src/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx" > "D:/git/CG project/build/src/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\GIT\CG PROJECT\SRC\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SD:/git/CG project" "-BD:/git/CG project/build" --check-stamp-file "D:/git/CG project/build/src/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

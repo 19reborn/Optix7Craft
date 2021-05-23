@@ -1,0 +1,18 @@
+﻿  Building Custom Rule D:/git/CG project/common/3rdParty/glfw/src/CMakeLists.txt
+  context.c
+  init.c
+  input.c
+  monitor.c
+  vulkan.c
+  window.c
+  win32_init.c
+  win32_joystick.c
+  win32_monitor.c
+  win32_time.c
+  win32_thread.c
+  win32_window.c
+  wgl_context.c
+  egl_context.c
+  osmesa_context.c
+  正在生成代码...
+  glfw.vcxproj -> D:\git\CG project\build\Debug\glfw3.lib

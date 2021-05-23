@@ -1,0 +1,8 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindCUDA/run_nvcc.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindOpenGL.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindPackageMessage.cmake
+D:/git/CG project/build/src/CMakeFiles/cuda_compile_ptx_1.dir/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.cmake.pre-gen
+D:/git/CG project/build/src/CMakeFiles/cuda_compile_ptx_1.dir/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.depend
+D:/git/CG project/src/CMakeLists.txt

@@ -1,0 +1,104 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{5153E261-8B0A-3874-A08A-2E043F4124DE}</ProjectGuid>
+    <WindowsTargetPlatformVersion>10.0.18362.0</WindowsTargetPlatformVersion>
+    <Keyword>Win32Proj</Keyword>
+    <Platform>x64</Platform>
+    <ProjectName>ZERO_CHECK</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v142</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v142</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include;C:\ProgramData\NVIDIA Corporation\OptiX SDK 7.3.0\include;D:\git\CG project\common\gdt;D:\git\CG project\common\3rdParty\glfw\include;D:\git\CG project\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include;C:\ProgramData\NVIDIA Corporation\OptiX SDK 7.3.0\include;D:\git\CG project\common\gdt;D:\git\CG project\common\3rdParty\glfw\include;D:\git\CG project\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\git\CG project\build\CMakeFiles\aadc7581b80db9f3f883a502d713e6e2\generate.stamp.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Checking Build System</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SD:/git/CG project" "-BD:/git/CG project/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "D:/git/CG project/build/OptixProject.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-3.18\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeCInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeDependentOption.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Compiler\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindCUDA.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindCUDA\run_nvcc.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindCUDA\select_compute_arch.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindDoxygen.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindOpenGL.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\GNUInstallDirs.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\WindowsPaths.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\WriteBasicConfigVersionFile.cmake;D:\git\CG project\CMakeLists.txt;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeCCompiler.cmake;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeCXXCompiler.cmake;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeRCCompiler.cmake;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeSystem.cmake;D:\git\CG project\build\src\CMakeFiles\cuda_compile_ptx_1.dir\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.depend;D:\git\CG project\common\3rdParty\glfw\CMakeLists.txt;D:\git\CG project\common\3rdParty\glfw\cmake_uninstall.cmake.in;D:\git\CG project\common\3rdParty\glfw\src\CMakeLists.txt;D:\git\CG project\common\3rdParty\glfw\src\glfw3.pc.in;D:\git\CG project\common\3rdParty\glfw\src\glfw3Config.cmake.in;D:\git\CG project\common\3rdParty\glfw\src\glfw_config.h.in;D:\git\CG project\common\gdt\CMakeLists.txt;D:\git\CG project\common\gdt\cmake\FindOptiX.cmake;D:\git\CG project\common\gdt\cmake\configure_build_type.cmake;D:\git\CG project\common\gdt\cmake\configure_optix.cmake;D:\git\CG project\common\glfWindow\CMakeLists.txt;D:\git\CG project\src\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\git\CG project\build\CMakeFiles\generate.stamp;D:\git\CG project\build\common\gdt\CMakeFiles\generate.stamp;D:\git\CG project\build\common\3rdParty\glfw\CMakeFiles\generate.stamp;D:\git\CG project\build\common\3rdParty\glfw\src\CMakeFiles\generate.stamp;D:\git\CG project\build\common\glfWindow\CMakeFiles\generate.stamp;D:\git\CG project\build\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Checking Build System</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SD:/git/CG project" "-BD:/git/CG project/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "D:/git/CG project/build/OptixProject.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-3.18\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeCInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeDependentOption.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Compiler\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindCUDA.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindCUDA\run_nvcc.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindCUDA\select_compute_arch.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindDoxygen.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindOpenGL.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\GNUInstallDirs.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\Platform\WindowsPaths.cmake;C:\Program Files\CMake\share\cmake-3.18\Modules\WriteBasicConfigVersionFile.cmake;D:\git\CG project\CMakeLists.txt;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeCCompiler.cmake;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeCXXCompiler.cmake;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeRCCompiler.cmake;D:\git\CG project\build\CMakeFiles\3.18.4\CMakeSystem.cmake;D:\git\CG project\build\src\CMakeFiles\cuda_compile_ptx_1.dir\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.depend;D:\git\CG project\common\3rdParty\glfw\CMakeLists.txt;D:\git\CG project\common\3rdParty\glfw\cmake_uninstall.cmake.in;D:\git\CG project\common\3rdParty\glfw\src\CMakeLists.txt;D:\git\CG project\common\3rdParty\glfw\src\glfw3.pc.in;D:\git\CG project\common\3rdParty\glfw\src\glfw3Config.cmake.in;D:\git\CG project\common\3rdParty\glfw\src\glfw_config.h.in;D:\git\CG project\common\gdt\CMakeLists.txt;D:\git\CG project\common\gdt\cmake\FindOptiX.cmake;D:\git\CG project\common\gdt\cmake\configure_build_type.cmake;D:\git\CG project\common\gdt\cmake\configure_optix.cmake;D:\git\CG project\common\glfWindow\CMakeLists.txt;D:\git\CG project\src\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">D:\git\CG project\build\CMakeFiles\generate.stamp;D:\git\CG project\build\common\gdt\CMakeFiles\generate.stamp;D:\git\CG project\build\common\3rdParty\glfw\CMakeFiles\generate.stamp;D:\git\CG project\build\common\3rdParty\glfw\src\CMakeFiles\generate.stamp;D:\git\CG project\build\common\glfWindow\CMakeFiles\generate.stamp;D:\git\CG project\build\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

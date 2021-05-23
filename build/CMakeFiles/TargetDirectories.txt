@@ -1,0 +1,15 @@
+D:/git/CG project/build/CMakeFiles/INSTALL.dir
+D:/git/CG project/build/CMakeFiles/ALL_BUILD.dir
+D:/git/CG project/build/CMakeFiles/ZERO_CHECK.dir
+D:/git/CG project/build/common/gdt/CMakeFiles/gdt.dir
+D:/git/CG project/build/common/gdt/CMakeFiles/INSTALL.dir
+D:/git/CG project/build/common/gdt/CMakeFiles/ALL_BUILD.dir
+D:/git/CG project/build/common/3rdParty/glfw/CMakeFiles/uninstall.dir
+D:/git/CG project/build/common/3rdParty/glfw/CMakeFiles/INSTALL.dir
+D:/git/CG project/build/common/3rdParty/glfw/CMakeFiles/ALL_BUILD.dir
+D:/git/CG project/build/common/3rdParty/glfw/src/CMakeFiles/glfw.dir
+D:/git/CG project/build/common/3rdParty/glfw/src/CMakeFiles/INSTALL.dir
+D:/git/CG project/build/common/glfWindow/CMakeFiles/glfWindow.dir
+D:/git/CG project/build/common/glfWindow/CMakeFiles/INSTALL.dir
+D:/git/CG project/build/src/CMakeFiles/INSTALL.dir
+D:/git/CG project/build/src/CMakeFiles/main.dir

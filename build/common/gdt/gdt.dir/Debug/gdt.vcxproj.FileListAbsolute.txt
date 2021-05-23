@@ -1,0 +1,2 @@
+D:\git\CG project\build\Debug\gdt.pdb
+D:\git\CG project\build\common\gdt\gdt.dir\Debug\gdt.pdb

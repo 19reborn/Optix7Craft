@@ -1,0 +1,10 @@
+^D:\GIT\CG PROJECT\BUILD\CMAKEFILES\AADC7581B80DB9F3F883A502D713E6E2\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SD:/git/CG project" "-BD:/git/CG project/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "D:/git/CG project/build/optix7course.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
