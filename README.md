@@ -4,7 +4,7 @@ Based on NVIDIA OptiX7.3 Frameworks.
 
 - Install Required Packages
 	- see above: CUDA 10.1, OptiX 7.3 SDK, latest driver, and cmake
-- download or clone the source repository
+- Download or clone the source repository
 - Open `CMake GUI` from your start menu
 	- point "source directory" to the downloaded source directory (not directory 'src')
 	- point "build directory" to <source directory>/build (agree to create this directory when prompted)
