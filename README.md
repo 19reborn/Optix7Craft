@@ -9,6 +9,10 @@ Based on NVIDIA OptiX7.3 Frameworks.
 	- cmake
 - Download or clone the source repository
 
+```bash
+git clone https://github.com/19reborn/Ray-Tracing-Project.git
+```
+
 ### Visual Studio
 
 - Open `CMake GUI` from your start menu
