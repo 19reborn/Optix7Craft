@@ -18,8 +18,10 @@ find_package(OpenGL REQUIRED)
 
 include_directories(${OptiX_INCLUDE})
 
+# cuda files
 cuda_compile_and_embed(embedded_ptx_code devicePrograms.cu)
 
+# Remember to add your .h and .cpp files at here
 add_executable(main
   ${embedded_ptx_code}
   optix7.h
