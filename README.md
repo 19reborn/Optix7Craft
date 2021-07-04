@@ -1,6 +1,5 @@
 # Ray-Tracing-Project
 Based on NVIDIA OptiX7.3 Frameworks.
-
 ## Building under Windows
 
 - Install Required Packages
