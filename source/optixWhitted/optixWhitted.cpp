@@ -401,7 +401,7 @@ void createGeometry( WhittedState &state )
             g_sphere_shell.center, g_sphere_shell.radius2,
             reinterpret_cast<float*>(&aabb[1]));
     sphere_bound(
-            g_sphere_shell.center, g_sphere_shell.radius2,
+            g_sphere_shell2.center, g_sphere_shell2.radius2,
             reinterpret_cast<float*>(&aabb[2]));
     parallelogram_bound(
             g_floor.v1, g_floor.v2, g_floor.anchor,
