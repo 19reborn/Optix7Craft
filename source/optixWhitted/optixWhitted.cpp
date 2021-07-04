@@ -26,6 +26,8 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
+//todo 内存回收！
+
 #include <glad/glad.h> // Needs to be included before gl_interop
 
 #include <cuda_runtime.h>
@@ -53,6 +55,10 @@
 
 #include "optixWhitted.h"
 
+#include <vector>
+#include <string>
+using std::vector;
+using std::string;
 
 //------------------------------------------------------------------------------
 //
@@ -93,10 +99,7 @@ typedef Record<CameraData>      RayGenRecord;
 typedef Record<MissData>        MissRecord;
 typedef Record<HitGroupData>    HitGroupRecord;
 
-const uint32_t OBJ_COUNT = 4;
-
-struct WhittedState
-{
+struct WhittedState {
     OptixDeviceContext          context                   = 0;
     OptixTraversableHandle      gas_handle                = {};
     CUdeviceptr                 d_gas_output_buffer       = {};
@@ -128,30 +131,190 @@ struct WhittedState
 
 //------------------------------------------------------------------------------
 //
+//  Model Classes
+//
+//------------------------------------------------------------------------------
+class cModel {
+public:
+    static uint32_t OBJ_COUNT;
+
+    cModel() {OBJ_COUNT++;}
+    virtual string get_type() = 0;
+    virtual void set_bound(float result[6]) = 0;
+    virtual uint32_t get_input_flag() = 0;
+    virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
+};
+
+uint32_t cModel::OBJ_COUNT = 0;
+
+class cSphere: public cModel {
+public:
+    GeometryData::Sphere args;
+
+    cSphere(float3 c, float r) {
+        std::cerr << "[INFO] A Sphere Generated.\n";
+        args.center = c;
+        args.radius = r;
+    }
+
+    string get_type() {return "Sphere";}
+    void set_bound(float result[6]) override {
+        auto *aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = args.center - args.radius;
+        float3 m_max = args.center + args.radius;
+
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.radiance_metal_sphere_prog_group,
+                &hgr[idx] ) );
+        hgr[idx].data.geometry.sphere = args;
+        //todo 这个玩意应该也要能自定义，但是我们肯定不用球，所以不急
+        //todo 另外，可以继续继承一些类，那些类能初始化一些特定的这些
+        hgr[idx].data.shading.metal = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.2f, 0.7f, 0.8f },   // Kd
+                { 0.9f, 0.9f, 0.9f },   // Ks
+                { 0.5f, 0.5f, 0.5f },   // Kr
+                64,                     // phong_exp
+        };
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.occlusion_metal_sphere_prog_group,
+                &hgr[idx+1] ) );
+        hgr[idx+1].data.geometry.sphere = args;
+    }
+
+};
+
+class cSphereShell: public cModel {
+public:
+    SphereShell args;
+
+    cSphereShell(float3 c, float r1, float r2) {
+        std::cerr << "[INFO] A SphereShell Generated.\n";
+        args.center = c;
+        args.radius1 = r1;
+        args.radius2 = r2;
+    }
+    string get_type() {return "SphereShell";}
+    void set_bound(float result[6]) override {
+        auto *aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = args.center - args.radius2;
+        float3 m_max = args.center + args.radius2;
+
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.radiance_glass_sphere_prog_group,
+                &hgr[idx] ) );
+        hgr[idx].data.geometry.sphere_shell = args;
+        hgr[idx].data.shading.glass = {
+                1e-2f,                                  // importance_cutoff
+                { 0.034f, 0.055f, 0.085f },             // cutoff_color
+                3.0f,                                   // fresnel_exponent
+                0.1f,                                   // fresnel_minimum
+                1.0f,                                   // fresnel_maximum
+                1.4f,                                   // refraction_index
+                { 1.0f, 1.0f, 1.0f },                   // refraction_color
+                { 1.0f, 1.0f, 1.0f },                   // reflection_color
+                { logf(.83f), logf(.83f), logf(.83f) }, // extinction_constant
+                { 0.6f, 0.6f, 0.6f },                   // shadow_attenuation
+                10,                                     // refraction_maxdepth
+                5                                       // reflection_maxdepth
+        };
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.occlusion_glass_sphere_prog_group,
+                &hgr[idx+1] ) );
+        hgr[idx+1].data.geometry.sphere_shell = args;
+        hgr[idx+1].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
+    }
+
+};
+
+class cRect: public cModel {
+public:
+    Parallelogram args;
+
+    cRect(float3 v1, float3 v2, float3 anchor) {
+        std::cerr << "[INFO] A Rect Generated.\n";
+        args.v1 = v1;
+        args.v2 = v2;
+        args.anchor = anchor;
+    }
+    string get_type() {return "Rect";}
+    void set_bound(float result[6]) override {
+        // v1 and v2 are scaled by 1./length^2.  Rescale back to normal for the bounds computation.
+        const float3 tv1  = args.v1 / dot( args.v1, args.v1 );
+        const float3 tv2  = args.v2 / dot( args.v2, args.v2 );
+        const float3 p00  = args.anchor;
+        const float3 p01  = args.anchor + tv1;
+        const float3 p10  = args.anchor + tv2;
+        const float3 p11  = args.anchor + tv1 + tv2;
+
+        auto aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = fminf( fminf( p00, p01 ), fminf( p10, p11 ));
+        float3 m_max = fmaxf( fmaxf( p00, p01 ), fmaxf( p10, p11 ));
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.radiance_floor_prog_group,
+                &hgr[idx] ) );
+        hgr[idx].data.geometry.parallelogram = args;
+        hgr[idx].data.shading.checker = {
+                { 0.8f, 0.3f, 0.15f },      // Kd1
+                { 0.9f, 0.85f, 0.05f },     // Kd2
+                { 0.8f, 0.3f, 0.15f },      // Ka1
+                { 0.9f, 0.85f, 0.05f },     // Ka2
+                { 0.0f, 0.0f, 0.0f },       // Ks1
+                { 0.0f, 0.0f, 0.0f },       // Ks2
+                { 0.0f, 0.0f, 0.0f },       // Kr1
+                { 0.0f, 0.0f, 0.0f },       // Kr2
+                0.0f,                       // phong_exp1
+                0.0f,                       // phong_exp2
+                { 32.0f, 16.0f }            // inv_checker_size
+        };
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.occlusion_floor_prog_group,
+                &hgr[idx+1] ) );
+        hgr[idx+1].data.geometry.parallelogram = args;
+
+    }
+
+};
+
+vector<cModel*> modelLst;
+
+//------------------------------------------------------------------------------
+//
 //  Geometry and Camera data
 //
 //------------------------------------------------------------------------------
 
-// Metal sphere, glass sphere, floor, light
-const GeometryData::Sphere g_sphere = {
-        { 2.0f, 1.5f, -2.5f }, // center
-        1.0f                   // radius
-};
-const SphereShell g_sphere_shell = {
-        { 4.0f, 2.3f, -4.0f }, // center
-        0.96f,                 // radius1
-        1.0f                   // radius2
-};
-const SphereShell g_sphere_shell2 = {
-        { 4.0f, 4.3f, -4.0f }, // center
-        0.96f,                 // radius1
-        1.0f                   // radius2
-};
-const Parallelogram g_floor(
-        make_float3( 32.0f, 0.0f, 0.0f ),    // v1
-        make_float3( 0.0f, 0.0f, 16.0f ),    // v2
-        make_float3( -16.0f, 0.01f, -8.0f )  // anchor
-);
+// light
 const BasicLight g_light = {
         make_float3( 60.0f, 40.0f, 0.0f ),   // pos
         make_float3( 1.0f, 1.0f, 1.0f )      // color
@@ -283,39 +446,6 @@ void initLaunchParams( WhittedState& state )
     state.params.handle = state.gas_handle;
 }
 
-static void sphere_bound(float3 center, float radius, float result[6])
-{
-    OptixAabb *aabb = reinterpret_cast<OptixAabb*>(result);
-
-    float3 m_min = center - radius;
-    float3 m_max = center + radius;
-
-    *aabb = {
-            m_min.x, m_min.y, m_min.z,
-            m_max.x, m_max.y, m_max.z
-    };
-}
-
-static void parallelogram_bound(float3 v1, float3 v2, float3 anchor, float result[6])
-{
-    // v1 and v2 are scaled by 1./length^2.  Rescale back to normal for the bounds computation.
-    const float3 tv1  = v1 / dot( v1, v1 );
-    const float3 tv2  = v2 / dot( v2, v2 );
-    const float3 p00  = anchor;
-    const float3 p01  = anchor + tv1;
-    const float3 p10  = anchor + tv2;
-    const float3 p11  = anchor + tv1 + tv2;
-
-    OptixAabb* aabb = reinterpret_cast<OptixAabb*>(result);
-
-    float3 m_min = fminf( fminf( p00, p01 ), fminf( p10, p11 ));
-    float3 m_max = fmaxf( fmaxf( p00, p01 ), fmaxf( p10, p11 ));
-    *aabb = {
-            m_min.x, m_min.y, m_min.z,
-            m_max.x, m_max.y, m_max.z
-    };
-}
-
 static void buildGas(
         const WhittedState &state,
         const OptixAccelBuildOptions &accel_options,
@@ -384,68 +514,59 @@ static void buildGas(
     }
 }
 
-void createGeometry( WhittedState &state )
-{
+void createGeometry( WhittedState &state ) {
     //
     // Build Custom Primitives
     //
 
     // Load AABB into device memory
-    OptixAabb   aabb[OBJ_COUNT];
+    OptixAabb*  aabb = new OptixAabb[cModel::OBJ_COUNT];
     CUdeviceptr d_aabb;
 
-    sphere_bound(
-            g_sphere.center, g_sphere.radius,
-            reinterpret_cast<float*>(&aabb[0]));
-    sphere_bound(
-            g_sphere_shell.center, g_sphere_shell.radius2,
-            reinterpret_cast<float*>(&aabb[1]));
-    sphere_bound(
-            g_sphere_shell2.center, g_sphere_shell2.radius2,
-            reinterpret_cast<float*>(&aabb[2]));
-    parallelogram_bound(
-            g_floor.v1, g_floor.v2, g_floor.anchor,
-            reinterpret_cast<float*>(&aabb[3]));
+    for(int i=0; i<cModel::OBJ_COUNT; i++) {
+        modelLst[i]->set_bound(reinterpret_cast<float*>(&aabb[i]));
+    }
 
+    std::cerr << "[INFO] aabb size: " << cModel::OBJ_COUNT * sizeof( OptixAabb ) << std::endl;
     CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_aabb
-                            ), OBJ_COUNT * sizeof( OptixAabb ) ) );
+                            ), cModel::OBJ_COUNT * sizeof( OptixAabb ) ) );
     CUDA_CHECK( cudaMemcpy(
             reinterpret_cast<void*>( d_aabb ),
-            &aabb,
-            OBJ_COUNT * sizeof( OptixAabb ),
+            aabb,                                       // notice: 这里原来是&aabb, 但它之前居然能正常运作！
+            cModel::OBJ_COUNT * sizeof( OptixAabb ),
             cudaMemcpyHostToDevice
     ) );
 
     // Setup AABB build input
-    uint32_t aabb_input_flags[] = {
-            /* flags for metal sphere */
-            OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT,
-            /* flag for glass sphere */
-            OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL,
-            /* we can also have a for */
-            OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL,
-            /* flag for floor */
-            OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT,
-    };
+    uint32_t* aabb_input_flags = new uint32_t[cModel::OBJ_COUNT];
+    for(int i=0; i<cModel::OBJ_COUNT; i++) {
+        aabb_input_flags[i] = modelLst[i]->get_input_flag();
+    }
+
     /* TODO: This API cannot control flags for different ray type */
 
     // originally 0, 1, 2
-    const uint32_t sbt_index[] = { 0, 1, 2, 3 };
+    uint32_t* sbt_index = new uint32_t[cModel::OBJ_COUNT];
+    for(int i=0; i<cModel::OBJ_COUNT; i++)
+        sbt_index[i] = i;
+
     CUdeviceptr    d_sbt_index;
 
-    CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_sbt_index ), sizeof(sbt_index) ) );
+    size_t size_sbt_index = cModel::OBJ_COUNT * sizeof(uint32_t);
+
+    CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_sbt_index ), size_sbt_index ) );
     CUDA_CHECK( cudaMemcpy(
             reinterpret_cast<void*>( d_sbt_index ),
             sbt_index,
-            sizeof( sbt_index ),
+            size_sbt_index,
             cudaMemcpyHostToDevice ) );
 
     OptixBuildInput aabb_input = {};
     aabb_input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
     aabb_input.customPrimitiveArray.aabbBuffers   = &d_aabb;
     aabb_input.customPrimitiveArray.flags         = aabb_input_flags;
-    aabb_input.customPrimitiveArray.numSbtRecords = OBJ_COUNT;
-    aabb_input.customPrimitiveArray.numPrimitives = OBJ_COUNT;
+    aabb_input.customPrimitiveArray.numSbtRecords = cModel::OBJ_COUNT;
+    aabb_input.customPrimitiveArray.numPrimitives = cModel::OBJ_COUNT;
     aabb_input.customPrimitiveArray.sbtIndexOffsetBuffer         = d_sbt_index;
     aabb_input.customPrimitiveArray.sbtIndexOffsetSizeInBytes    = sizeof( uint32_t );
     aabb_input.customPrimitiveArray.primitiveIndexOffset         = 0;
@@ -858,112 +979,13 @@ void createSBT( WhittedState &state )
 
     // Hitgroup program record
     {
-        const size_t count_records = RAY_TYPE_COUNT * OBJ_COUNT;
-        HitGroupRecord hitgroup_records[count_records];
+        size_t count_records = RAY_TYPE_COUNT * cModel::OBJ_COUNT;
+        HitGroupRecord* hitgroup_records = new HitGroupRecord[count_records];
 
         // Note: Fill SBT record array the same order like AS is built.
-        int sbt_idx = 0;
-
-        // Metal Sphere
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.radiance_metal_sphere_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.sphere = g_sphere;
-        hitgroup_records[ sbt_idx ].data.shading.metal = {
-                { 0.2f, 0.5f, 0.5f },   // Ka
-                { 0.2f, 0.7f, 0.8f },   // Kd
-                { 0.9f, 0.9f, 0.9f },   // Ks
-                { 0.5f, 0.5f, 0.5f },   // Kr
-                64,                     // phong_exp
-        };
-        sbt_idx ++;
-
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.occlusion_metal_sphere_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.sphere = g_sphere;
-        sbt_idx ++;
-
-        // Glass Sphere
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.radiance_glass_sphere_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.sphere_shell = g_sphere_shell;
-        hitgroup_records[ sbt_idx ].data.shading.glass = {
-                1e-2f,                                  // importance_cutoff
-                { 0.034f, 0.055f, 0.085f },             // cutoff_color
-                3.0f,                                   // fresnel_exponent
-                0.1f,                                   // fresnel_minimum
-                1.0f,                                   // fresnel_maximum
-                1.4f,                                   // refraction_index
-                { 1.0f, 1.0f, 1.0f },                   // refraction_color
-                { 1.0f, 1.0f, 1.0f },                   // reflection_color
-                { logf(.83f), logf(.83f), logf(.83f) }, // extinction_constant
-                { 0.6f, 0.6f, 0.6f },                   // shadow_attenuation
-                10,                                     // refraction_maxdepth
-                5                                       // reflection_maxdepth
-        };
-        sbt_idx ++;
-
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.occlusion_glass_sphere_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.sphere_shell = g_sphere_shell;
-        hitgroup_records[ sbt_idx ].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
-        sbt_idx ++;
-
-        // Another Glass Sphere
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.radiance_glass_sphere_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.sphere_shell = g_sphere_shell2;
-        hitgroup_records[ sbt_idx ].data.shading.glass = {
-                1e-2f,                                  // importance_cutoff
-                { 0.085f, 0.055f, 0.034f },             // cutoff_color
-                3.0f,                                   // fresnel_exponent
-                0.1f,                                   // fresnel_minimum
-                1.0f,                                   // fresnel_maximum
-                1.4f,                                   // refraction_index
-                { 1.0f, 1.0f, 1.0f },                   // refraction_color
-                { 1.0f, 1.0f, 1.0f },                   // reflection_color
-                { logf(.83f), logf(.83f), logf(.83f) }, // extinction_constant
-                { 0.6f, 0.6f, 0.6f },                   // shadow_attenuation
-                10,                                     // refraction_maxdepth
-                5                                       // reflection_maxdepth
-        };
-        sbt_idx ++;
-
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.occlusion_glass_sphere_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.sphere_shell = g_sphere_shell;
-        hitgroup_records[ sbt_idx ].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
-        sbt_idx ++;
-
-        // Floor
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.radiance_floor_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.parallelogram = g_floor;
-        hitgroup_records[ sbt_idx ].data.shading.checker = {
-                { 0.8f, 0.3f, 0.15f },      // Kd1
-                { 0.9f, 0.85f, 0.05f },     // Kd2
-                { 0.8f, 0.3f, 0.15f },      // Ka1
-                { 0.9f, 0.85f, 0.05f },     // Ka2
-                { 0.0f, 0.0f, 0.0f },       // Ks1
-                { 0.0f, 0.0f, 0.0f },       // Ks2
-                { 0.0f, 0.0f, 0.0f },       // Kr1
-                { 0.0f, 0.0f, 0.0f },       // Kr2
-                0.0f,                       // phong_exp1
-                0.0f,                       // phong_exp2
-                { 32.0f, 16.0f }            // inv_checker_size
-        };
-        sbt_idx++;
-
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.occlusion_floor_prog_group,
-                &hitgroup_records[sbt_idx] ) );
-        hitgroup_records[ sbt_idx ].data.geometry.parallelogram = g_floor;
+        for(int i=0; i<count_records; i+=2) {
+            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i);
+        }
 
         CUdeviceptr d_hitgroup_records;
         size_t      sizeof_hitgroup_record = sizeof( HitGroupRecord );
@@ -1184,6 +1206,22 @@ int main( int argc, char* argv[] )
 
     try
     {
+        //
+        // Add basic models
+        //
+        modelLst.push_back(new cSphere({ 2.0f, 1.5f, -2.5f }, 1.0f));
+        
+        for(int i=1; i<=10; i++)
+            modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
+
+        modelLst.push_back(new cRect(
+            make_float3( 32.0f, 0.0f, 0.0f ),
+            make_float3( 0.0f, 0.0f, 16.0f ),
+            make_float3( -16.0f, 0.01f, -8.0f )
+        ));
+        
+        modelLst.push_back(new cSphere({ 6.0f, 1.5f, -2.5f }, 1.0f));
+
         initCameraState();
 
         //
