@@ -93,7 +93,7 @@ typedef Record<CameraData>      RayGenRecord;
 typedef Record<MissData>        MissRecord;
 typedef Record<HitGroupData>    HitGroupRecord;
 
-const uint32_t OBJ_COUNT = 3;
+const uint32_t OBJ_COUNT = 4;
 
 struct WhittedState
 {
@@ -139,6 +139,11 @@ const GeometryData::Sphere g_sphere = {
 };
 const SphereShell g_sphere_shell = {
         { 4.0f, 2.3f, -4.0f }, // center
+        0.96f,                 // radius1
+        1.0f                   // radius2
+};
+const SphereShell g_sphere_shell2 = {
+        { 4.0f, 4.3f, -4.0f }, // center
         0.96f,                 // radius1
         1.0f                   // radius2
 };
@@ -395,9 +400,12 @@ void createGeometry( WhittedState &state )
     sphere_bound(
             g_sphere_shell.center, g_sphere_shell.radius2,
             reinterpret_cast<float*>(&aabb[1]));
+    sphere_bound(
+            g_sphere_shell.center, g_sphere_shell.radius2 + 10.f,
+            reinterpret_cast<float*>(&aabb[2]));
     parallelogram_bound(
             g_floor.v1, g_floor.v2, g_floor.anchor,
-            reinterpret_cast<float*>(&aabb[2]));
+            reinterpret_cast<float*>(&aabb[3]));
 
     CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_aabb
                             ), OBJ_COUNT * sizeof( OptixAabb ) ) );
@@ -414,12 +422,15 @@ void createGeometry( WhittedState &state )
             OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT,
             /* flag for glass sphere */
             OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL,
+            /* we can also have a for */
+            OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL,
             /* flag for floor */
             OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT,
     };
     /* TODO: This API cannot control flags for different ray type */
 
-    const uint32_t sbt_index[] = { 0, 1, 2 };
+    // originally 0, 1, 2
+    const uint32_t sbt_index[] = { 0, 1, 2, 3 };
     CUdeviceptr    d_sbt_index;
 
     CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_sbt_index ), sizeof(sbt_index) ) );
@@ -881,6 +892,34 @@ void createSBT( WhittedState &state )
         hitgroup_records[ sbt_idx ].data.shading.glass = {
                 1e-2f,                                  // importance_cutoff
                 { 0.034f, 0.055f, 0.085f },             // cutoff_color
+                3.0f,                                   // fresnel_exponent
+                0.1f,                                   // fresnel_minimum
+                1.0f,                                   // fresnel_maximum
+                1.4f,                                   // refraction_index
+                { 1.0f, 1.0f, 1.0f },                   // refraction_color
+                { 1.0f, 1.0f, 1.0f },                   // reflection_color
+                { logf(.83f), logf(.83f), logf(.83f) }, // extinction_constant
+                { 0.6f, 0.6f, 0.6f },                   // shadow_attenuation
+                10,                                     // refraction_maxdepth
+                5                                       // reflection_maxdepth
+        };
+        sbt_idx ++;
+
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.occlusion_glass_sphere_prog_group,
+                &hitgroup_records[sbt_idx] ) );
+        hitgroup_records[ sbt_idx ].data.geometry.sphere_shell = g_sphere_shell;
+        hitgroup_records[ sbt_idx ].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
+        sbt_idx ++;
+
+        // Another Glass Sphere
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.radiance_glass_sphere_prog_group,
+                &hitgroup_records[sbt_idx] ) );
+        hitgroup_records[ sbt_idx ].data.geometry.sphere_shell = g_sphere_shell2;
+        hitgroup_records[ sbt_idx ].data.shading.glass = {
+                1e-2f,                                  // importance_cutoff
+                { 0.085f, 0.055f, 0.034f },             // cutoff_color
                 3.0f,                                   // fresnel_exponent
                 0.1f,                                   // fresnel_minimum
                 1.0f,                                   // fresnel_maximum
