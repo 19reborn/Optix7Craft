@@ -84,6 +84,9 @@ int32_t           mouse_button = -1;
 
 const int         max_trace = 12;
 
+// Model state
+bool              model_need_update = false;
+
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -452,6 +455,12 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_A) key_value['a'] = true;
         if (key == GLFW_KEY_S) key_value['s'] = true;
         if (key == GLFW_KEY_D) key_value['d'] = true;
+
+        // ball place for test
+        if (key == GLFW_KEY_E) {
+            modelLst.push_back(new cSphereShell({ 4.0f, 2.3f, -4.0f }, 0.96f, 1.0f));
+            model_need_update = true;
+        }
     }
     else if (action == GLFW_RELEASE)
     {
@@ -1166,8 +1175,19 @@ void createContext( WhittedState& state )
     state.context = context;
 }
 
+bool detectModelUpdate(WhittedState& state) {
+    if(model_need_update) {
+        createGeometry  ( state );
+        createSBT      ( state );
+        initLaunchParams( state );
+        model_need_update = false;
+        return true;
+    }
+    return false;
+}
+
 //
-//
+// Camera
 //
 
 void initCameraState()
@@ -1231,6 +1251,11 @@ void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &
 
     handleCameraUpdate( state );
     handleResize( output_buffer, state.params );
+
+    // if we place a new model, then update
+    if(detectModelUpdate(state)) {
+        output_buffer.setStream( state.stream );
+    }
 }
 
 void launchSubframe( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState& state )
@@ -1359,11 +1384,12 @@ int main( int argc, char* argv[] )
         //
         modelLst.push_back(new cSphere({ 2.0f, 1.5f, -2.5f }, 1.0f));
         
-        for(int i=1; i<=10; i++)
-            if(i%2)
-                modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
-            else
-                modelLst.push_back(new cCube({ 4.0f, 0.3f + 2.f * i, -4.0f }, { 1.0f, 1.0f, 1.0f }));
+        // for(int i=1; i<=10; i++)
+        //     if(i%2)
+        //         modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
+        //     else
+        //         modelLst.push_back(new cCube({ 4.0f, 0.3f + 2.f * i, -4.0f }, { 1.0f, 1.0f, 1.0f }));
+
         modelLst.push_back(new cRect(
             make_float3( 32.0f, 0.0f, 0.0f ),
             make_float3( 0.0f, 0.0f, 16.0f ),
@@ -1371,8 +1397,6 @@ int main( int argc, char* argv[] )
         ));
         
         modelLst.push_back(new cSphere({ 6.0f, 1.5f, -2.5f }, 1.0f));
-
-        initCameraState();
 
         initCameraState();
         //
