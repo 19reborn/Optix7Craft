@@ -93,6 +93,12 @@ struct SphereShell
 	float 	radius2;
 };
 
+struct Cube
+{
+    float3 	center;
+    float3 	size;
+};
+
 
 struct Parallelogram
 {
@@ -158,6 +164,7 @@ struct HitGroupData
         GeometryData::Sphere sphere;
         SphereShell          sphere_shell;
         Parallelogram        parallelogram;
+        Cube                 cube;
     } geometry;
 
     union

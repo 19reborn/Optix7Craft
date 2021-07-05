@@ -108,6 +108,7 @@ struct WhittedState {
     OptixModule                 camera_module             = 0;
     OptixModule                 shading_module            = 0;
     OptixModule                 sphere_module             = 0;
+    OptixModule                 cube_module             = 0;
 
     OptixProgramGroup           raygen_prog_group         = 0;
     OptixProgramGroup           radiance_miss_prog_group  = 0;
@@ -116,6 +117,8 @@ struct WhittedState {
     OptixProgramGroup           occlusion_glass_sphere_prog_group = 0;
     OptixProgramGroup           radiance_metal_sphere_prog_group  = 0;
     OptixProgramGroup           occlusion_metal_sphere_prog_group = 0;
+    OptixProgramGroup           radiance_metal_cube_prog_group = 0;
+    OptixProgramGroup           occlusion_metal_cube_prog_group = 0;
     OptixProgramGroup           radiance_floor_prog_group         = 0;
     OptixProgramGroup           occlusion_floor_prog_group        = 0;
 
@@ -246,6 +249,52 @@ public:
     }
 
 };
+
+class cCube : public cModel {
+public:
+    Cube args;
+
+    cCube(float3 c, float3 s) {
+        std::cerr << "[INFO] A Cube Generated.\n";
+        args.center = c;
+        args.size = s;
+    }
+
+    string get_type() { return "Cube"; }
+    void set_bound(float result[6]) override {
+        auto* aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = args.center - args.size;
+        float3 m_max = args.center + args.size;
+
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.radiance_metal_cube_prog_group,
+            &hgr[idx]));
+        hgr[idx].data.geometry.cube = args;
+        hgr[idx].data.shading.metal = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.2f, 0.7f, 0.8f },   // Kd
+                { 0.9f, 0.9f, 0.9f },   // Ks
+                { 0.5f, 0.5f, 0.5f },   // Kr
+                64,                     // phong_exp
+        };
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.occlusion_metal_cube_prog_group,
+            &hgr[idx + 1]));
+        hgr[idx + 1].data.geometry.cube = args;
+    }
+
+};
+
 
 class cRect: public cModel {
 public:
@@ -649,6 +698,21 @@ void createModules( WhittedState &state )
                 &sizeof_log,
                 &state.sphere_module ) );
     }
+    
+    {
+        size_t      inputSize = 0;
+        const char* input = sutil::getInputData(OPTIX_SAMPLE_NAME, OPTIX_SAMPLE_DIR, "cube.cu", inputSize);
+        OPTIX_CHECK_LOG(optixModuleCreateFromPTX(
+            state.context,
+            &module_compile_options,
+            &state.pipeline_compile_options,
+            input,
+            inputSize,
+            log,
+            &sizeof_log,
+            &state.cube_module));
+    }
+    
 }
 
 static void createCameraProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
@@ -757,7 +821,7 @@ static void createMetalSphereProgram( WhittedState &state, std::vector<OptixProg
     OptixProgramGroupOptions    occlusion_sphere_prog_group_options = {};
     OptixProgramGroupDesc       occlusion_sphere_prog_group_desc = {};
     occlusion_sphere_prog_group_desc.kind   = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
-            occlusion_sphere_prog_group_desc.hitgroup.moduleIS           = state.sphere_module;
+    occlusion_sphere_prog_group_desc.hitgroup.moduleIS           = state.sphere_module;
     occlusion_sphere_prog_group_desc.hitgroup.entryFunctionNameIS    = "__intersection__sphere";
     occlusion_sphere_prog_group_desc.hitgroup.moduleCH               = state.shading_module;
     occlusion_sphere_prog_group_desc.hitgroup.entryFunctionNameCH    = "__closesthit__full_occlusion";
@@ -775,6 +839,57 @@ static void createMetalSphereProgram( WhittedState &state, std::vector<OptixProg
 
     program_groups.push_back(occlusion_sphere_prog_group);
     state.occlusion_metal_sphere_prog_group = occlusion_sphere_prog_group;
+}
+
+static void createMetalCubeProgram(WhittedState& state, std::vector<OptixProgramGroup>& program_groups)
+{
+    OptixProgramGroup           radiance_cube_prog_group;
+    OptixProgramGroupOptions    radiance_cube_prog_group_options = {};
+    OptixProgramGroupDesc       radiance_cube_prog_group_desc = {};
+    radiance_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+    radiance_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    radiance_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__metal_radiance";
+    radiance_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    char    log[2048];
+    size_t  sizeof_log = sizeof(log);
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &radiance_cube_prog_group_desc,
+        1,
+        &radiance_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &radiance_cube_prog_group));
+
+    program_groups.push_back(radiance_cube_prog_group);
+    state.radiance_metal_cube_prog_group = radiance_cube_prog_group;
+
+    OptixProgramGroup           occlusion_cube_prog_group;
+    OptixProgramGroupOptions    occlusion_cube_prog_group_options = {};
+    OptixProgramGroupDesc       occlusion_cube_prog_group_desc = {};
+    occlusion_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+    occlusion_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    occlusion_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__full_occlusion";
+    occlusion_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &occlusion_cube_prog_group_desc,
+        1,
+        &occlusion_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &occlusion_cube_prog_group));
+
+    program_groups.push_back(occlusion_cube_prog_group);
+    state.occlusion_metal_cube_prog_group = occlusion_cube_prog_group;
 }
 
 static void createFloorProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
@@ -883,6 +998,7 @@ void createPipeline( WhittedState &state )
     createCameraProgram( state, program_groups );
     createGlassSphereProgram( state, program_groups );
     createMetalSphereProgram( state, program_groups );
+    createMetalCubeProgram( state, program_groups );
     createFloorProgram( state, program_groups );
     createMissProgram( state, program_groups );
 
@@ -1141,6 +1257,8 @@ void cleanupState( WhittedState& state )
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_metal_sphere_prog_group ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_glass_sphere_prog_group ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_glass_sphere_prog_group ) );
+    OPTIX_CHECK( optixProgramGroupDestroy  ( state.radiance_metal_cube_prog_group   ) );
+    OPTIX_CHECK( optixProgramGroupDestroy  ( state.occlusion_metal_cube_prog_group  ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_miss_prog_group         ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_floor_prog_group        ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_floor_prog_group       ) );
@@ -1211,8 +1329,10 @@ int main( int argc, char* argv[] )
         modelLst.push_back(new cSphere({ 2.0f, 1.5f, -2.5f }, 1.0f));
         
         for(int i=1; i<=10; i++)
-            modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
-
+            if(i%2)
+                modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
+            else
+                modelLst.push_back(new cCube({ 4.0f, 0.3f + 2.f * i, -4.0f }, { 1.0f, 1.0f, 1.0f }));
         modelLst.push_back(new cRect(
             make_float3( 32.0f, 0.0f, 0.0f ),
             make_float3( 0.0f, 0.0f, 16.0f ),
