@@ -602,6 +602,9 @@ void createGeometry( WhittedState &state ) {
             state.d_gas_output_buffer);
 
     CUDA_CHECK( cudaFree( (void*)d_aabb) );
+
+    free(aabb);
+    free(sbt_index);
 }
 
 void createModules( WhittedState &state )
@@ -1020,6 +1023,8 @@ void createSBT( WhittedState &state )
         state.sbt.hitgroupRecordBase            = d_hitgroup_records;
         state.sbt.hitgroupRecordCount           = count_records;
         state.sbt.hitgroupRecordStrideInBytes   = static_cast<uint32_t>( sizeof_hitgroup_record );
+
+        free(hitgroup_records);
     }
 }
 
