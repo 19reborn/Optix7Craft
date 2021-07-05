@@ -80,7 +80,7 @@ float deltatime = 0.f;
 
 //Keyboard mapping
 map<char, bool>   key_value;
-int wscnt = 0, adcnt = 0;
+int wscnt = 0, adcnt = 0, sccnt = 0;
 bool sprint = false;
 
 
@@ -476,12 +476,32 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         {
             switchcam = true;// a test button. @@todo: change controlled entity.
         }
-        if (key == GLFW_KEY_SPACE && control->isOnGround)
+        if (key == GLFW_KEY_SPACE )
         {
-            control->isOnGround = false;
-            control->acceleration += make_float3(0.f, camera_speed * 100.f, 0.f);
+            key_value['_'] = true, sccnt++;
+            if (control->isOnGround && !control->isFlying)
+            {
+                control->isOnGround = false;
+                control->acceleration += make_float3(0.f, 13.f + (camera_speed - 0.5f) * 15.f, 0.f);
+            }
+        }
+        if (key == GLFW_KEY_LEFT_CONTROL)
+        {
+            key_value['c'] = true, sccnt--;
         }
 
+        if (key == GLFW_KEY_M)
+        {
+            if (control->isFlying)
+            {
+                control->isFlying = false;
+                control->isOnGround = false;
+            }
+            else {
+                control->isFlying = true;
+                control->isOnGround = false;
+            }
+        }
         // ball place for test
         if (key == GLFW_KEY_E) 
         {
@@ -500,6 +520,15 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
             camera_speed = 0.5f;
             sprint = false;
         }
+        if (key == GLFW_KEY_SPACE)
+        {
+            key_value['_'] = false, sccnt--;
+        }
+        if (key == GLFW_KEY_LEFT_CONTROL)
+        {
+            key_value['c'] = false, sccnt++;
+        }
+
     }
     else if( key == GLFW_KEY_G )
     {
@@ -1289,13 +1318,27 @@ void updateEntity(float dt)//the motion of entities in dt time
     for (auto& ent : entList)
     {
         ent->velocity += ent->acceleration;
-        if (!ent->isOnGround) ent->velocity = ent->velocity + make_float3(0.f, -40.f*dt, 0.f);
+        if (!ent->isOnGround && !control->isFlying) ent->velocity = ent->velocity + make_float3(0.f, -40.f*dt, 0.f);
         ent->acceleration = make_float3(0.f, 0.f, 0.f);
         ent->pos += ent->velocity * dt;
         ent->eye += ent->velocity * dt;
         ent->lookat += ent->velocity * dt;
         ent->velocity.x *= 0.97f;
         ent->velocity.z *= 0.97f;
+        if (control->isFlying) ent->velocity *= 0.97;
+        
+        
+        if (ent->pos.y <= 0.f)
+        {
+            float3 tmp0 = ent->eye - ent->pos;
+            float3 tmp1 = ent->lookat - ent->pos;
+            ent->pos.y = 0.f;
+            ent->eye = ent->pos + tmp0;
+            ent->lookat = ent->pos + tmp1;
+            switchcam = true;
+            ent->velocity.y = 0.f;
+            ent->isOnGround = true;
+        }
     }
 
 }
@@ -1303,16 +1346,34 @@ void updateControl(float dt)//from keyboard to *contol
 {
 
     float3 direction(make_float3(0.0f));
-    if (wscnt != 0 || adcnt != 0)
+    if (!control->isFlying)
     {
-        float3 camera_target_vector = camera.direction();
-        float3 camera_normal_vector = cross(camera.up(), camera.direction());
-        if (key_value['w']) direction += normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
-        if (key_value['s']) direction -= normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
-        if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
-        if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
-        direction = normalize(direction);
+        if (wscnt != 0 || adcnt != 0)
+        {
+            float3 camera_target_vector = camera.direction();
+            float3 camera_normal_vector = cross(camera.up(), camera.direction());
+            if (key_value['w']) direction += normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['s']) direction -= normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            direction = normalize(direction);
+        }   
     }
+    else {
+        if (wscnt != 0 || adcnt != 0 || sccnt !=0)
+        {
+            float3 camera_target_vector = camera.direction();
+            float3 camera_normal_vector = cross(camera.up(), camera.direction());
+            if (key_value['w']) direction += normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['s']) direction -= normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            if (key_value['_']) direction += normalize(make_float3(0, 1, 0));
+            if (key_value['c']) direction -= normalize(make_float3(0, 1, 0));
+            direction = normalize(direction);
+        }
+    }
+    
     control->acceleration += camera_speed * direction;
 
     if (sprint)
