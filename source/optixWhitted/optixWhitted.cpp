@@ -476,9 +476,14 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         {
             switchcam = true;// a test button. @@todo: change controlled entity.
         }
+        if (key == GLFW_KEY_SPACE)
+        {
+
+        }
 
         // ball place for test
-        if (key == GLFW_KEY_E) {
+        if (key == GLFW_KEY_E) 
+        {
             modelLst.push_back(new cSphereShell({ 4.0f, 2.3f, -4.0f }, 0.96f, 1.0f));
             model_need_update = true;
         }
@@ -1541,7 +1546,7 @@ int main( int argc, char* argv[] )
             glfwSetKeyCallback          ( window, keyCallback           );
             glfwSetScrollCallback       ( window, scrollCallback        );
             glfwSetWindowUserPointer    ( window, &state.params         );
-            
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             {
                 // output_buffer needs to be destroyed before cleanupUI is called
                 sutil::CUDAOutputBuffer<uchar4> output_buffer(
