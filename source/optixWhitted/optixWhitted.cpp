@@ -253,9 +253,8 @@ public:
 
     cRect(float3 v1, float3 v2, float3 anchor) {
         std::cerr << "[INFO] A Rect Generated.\n";
-        args.v1 = v1;
-        args.v2 = v2;
-        args.anchor = anchor;
+        args = { v1,v2,anchor };
+
     }
     string get_type() {return "Rect";}
     void set_bound(float result[6]) override {
@@ -1224,6 +1223,7 @@ int main( int argc, char* argv[] )
 
         initCameraState();
 
+        initCameraState();
         //
         // Set up OptiX state
         //
