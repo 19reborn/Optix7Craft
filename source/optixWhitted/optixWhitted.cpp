@@ -53,6 +53,7 @@
 #include <iomanip>
 #include <cstring>
 
+#include "entity.h"
 #include "optixWhitted.h"
 
 #include <vector>
@@ -63,6 +64,7 @@ using std::vector;
 using std::string;
 using std::map;
 
+
 //------------------------------------------------------------------------------
 //
 // Globals
@@ -71,16 +73,23 @@ using std::map;
 
 bool              resize_dirty  = false;
 bool              minimized     = false;
-map<char, bool>   key_value;
-float camera_speed = 6.5f; 
-int wscnt = 0, adcnt = 0;
-float dashfov = 1.0f, fovStarttime = 0.f, curFov = 0.f;
 float lastframe = 0.f;
 float deltatime = 0.f;
-bool dash = false;
+
+//Keyboard mapping
+map<char, bool>   key_value;
+int wscnt = 0, adcnt = 0;
+bool sprint = false;
+
+
 // Camera state
+float camera_speed = 0.5f;
 sutil::Camera     camera;
 sutil::Trackball  trackball;
+std::vector<Entity*> entList;//Entity list, the entList[0] is our player.
+Entity* player = nullptr;//refer to entList[0]. Binding process located in void initEntitySystem()
+Entity* control = nullptr;//refer to the entity you are controlling.
+bool switchcam = true; //Whenever you wanna change printer control, give this bool a TRUE value
 
 // Mouse state
 int32_t           mouse_button = -1;
@@ -185,8 +194,7 @@ public:
                 state.radiance_metal_sphere_prog_group,
                 &hgr[idx] ) );
         hgr[idx].data.geometry.sphere = args;
-        //todo 这个玩意应该也要能自定义，但是我们肯定不用球，所以不急
-        //todo 另外，可以继续继承一些类，那些类能初始化一些特定的这些
+
         hgr[idx].data.shading.metal = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
                 { 0.2f, 0.7f, 0.8f },   // Kd
@@ -407,10 +415,12 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_D) key_value['d'] = true, adcnt--;
         if (key == GLFW_KEY_LEFT_SHIFT)
         {
-            camera_speed = 15.f;
-            dash = true;
-            fovStarttime = glfwGetTime();
-            curFov = camera.fovY();
+            camera_speed = 0.9f;
+            sprint = true;
+        }
+        if (key == GLFW_KEY_I)
+        {
+            switchcam = true;// a test button. @@todo: change controlled entity.
         }
     }
     else if (action == GLFW_RELEASE)
@@ -421,10 +431,8 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_D) key_value['d'] = false, adcnt++;
         if (key == GLFW_KEY_LEFT_SHIFT)
         {
-            camera_speed = 6.5f;
-            dash = false; 
-            fovStarttime = glfwGetTime();
-            curFov = camera.fovY();
+            camera_speed = 0.5f;
+            sprint = false;
         }
     }
     else if( key == GLFW_KEY_G )
@@ -1065,7 +1073,21 @@ void createContext( WhittedState& state )
 //
 //
 //
+void initEntitySystem()
+{
+    //Create a Player
+    switchcam = true;
+    Entity* enttmp = new Entity;
+    entList.push_back(enttmp);
+    control = player = entList[0];
+    player->pos = make_float3(8.0f, 0.7f, -4.0f);
+    player->eye = make_float3(8.0f, 2.0f, -4.0f);
+    player->lookat = make_float3(4.0f, 2.3f, -4.0f);
+    player->up = make_float3(0.0f, 1.0f, 0.0f);
 
+
+    //@@todo: Create other entities 
+}
 void initCameraState()
 {
     camera.setEye( make_float3( 8.0f, 2.0f, -4.0f ) );
@@ -1079,7 +1101,26 @@ void initCameraState()
     trackball.setGimbalLock(true);
 }
 
-void handleCameraUpdate( WhittedState &state,float delta )
+void updateEntity(float dt)//the motion of entities in dt time
+{
+    if (!switchcam)
+    {
+        control->lookat = camera.lookat();
+    }
+
+    for (auto& ent : entList)
+    {
+        ent->velocity += ent->acceleration;
+        if (!ent->isOnGround) ent->velocity = ent->velocity + make_float3(0.f, -40.f * dt, 0.f);
+        ent->acceleration = make_float3(0.f, 0.f, 0.f);
+        ent->pos += ent->velocity * dt;
+        ent->eye += ent->velocity * dt;
+        ent->lookat += ent->velocity * dt;
+        ent->velocity *= 0.97f;
+    }
+
+}
+void updateControl(float dt)//from keyboard to *contol
 {
 
     float3 direction(make_float3(0.0f));
@@ -1093,27 +1134,41 @@ void handleCameraUpdate( WhittedState &state,float delta )
         if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
         direction = normalize(direction);
     }
-    
-    
-    camera.setAspectRatio( static_cast<float>( state.params.width ) / static_cast<float>( state.params.height ) );
-    camera.setEye(camera.eye() + camera_speed * delta * direction);
-    camera.setLookat(camera.lookat() + camera_speed * delta * direction);
+    control->acceleration += camera_speed * direction;
 
-    if (dash)
+    if (sprint)
     {
-        if (camera.fovY() < 75.f) camera.setFovY(camera.fovY() + delta*100.f);
+        if (camera.fovY() < 70.f) camera.setFovY(camera.fovY() + dt * 120.f);
     }
     else {
-        if (camera.fovY() > 60.f) camera.setFovY(camera.fovY() - delta*100.f);
+        if (camera.fovY() > 60.f) camera.setFovY(camera.fovY() - dt * 120.f);
     }
-    
+}
+
+void handleCameraUpdate( WhittedState &state)
+{
+    //modifing camera through entity data
+    if (switchcam)
+    {
+        camera.setEye(control->eye);
+        camera.setLookat(control->lookat);
+        switchcam = false;
+    }
+    else {
+        camera.setLookat(control->lookat);
+        camera.setEye(control->eye);
+    }
+    //end modifing
+
+    camera.setAspectRatio( static_cast<float>( state.params.width ) / static_cast<float>( state.params.height ) );
     
 
     CameraData camData;
     camData.eye = camera.eye();
     camera.UVWFrame( camData.U, camData.V, camData.W );
-
     syncCameraDataToSbt(state, camData);
+    
+    
 }
 
 void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& params )
@@ -1132,13 +1187,13 @@ void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& param
     ) );
 }
 
-void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state,float  delta )
+void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state)
 {
     // Update params on device
 
     state.params.subframe_index = 0;
 
-    handleCameraUpdate( state ,delta);
+    handleCameraUpdate( state );
     handleResize( output_buffer, state.params );
 }
 
@@ -1277,9 +1332,10 @@ int main( int argc, char* argv[] )
         
         modelLst.push_back(new cSphere({ 6.0f, 1.5f, -2.5f }, 1.0f));
 
-        initCameraState();
+        initEntitySystem();
 
         initCameraState();
+
         //
         // Set up OptiX state
         //
@@ -1303,7 +1359,7 @@ int main( int argc, char* argv[] )
             glfwSetKeyCallback          ( window, keyCallback           );
             glfwSetScrollCallback       ( window, scrollCallback        );
             glfwSetWindowUserPointer    ( window, &state.params         );
-
+            
             {
                 // output_buffer needs to be destroyed before cleanupUI is called
                 sutil::CUDAOutputBuffer<uchar4> output_buffer(
@@ -1318,7 +1374,6 @@ int main( int argc, char* argv[] )
                 std::chrono::duration<double> state_update_time( 0.0 );
                 std::chrono::duration<double> render_time( 0.0 );
                 std::chrono::duration<double> display_time( 0.0 );
-
                 do
                 {
                     float currentframe = glfwGetTime();
@@ -1328,7 +1383,9 @@ int main( int argc, char* argv[] )
                     auto t0 = std::chrono::steady_clock::now();
                     glfwPollEvents();
 
-                    updateState( output_buffer, state, deltatime );
+                    updateControl(deltatime);
+                    updateEntity(deltatime);
+                    updateState( output_buffer, state);
                     auto t1 = std::chrono::steady_clock::now();
                     state_update_time += t1 - t0;
                     t0 = t1;
@@ -1370,7 +1427,7 @@ int main( int argc, char* argv[] )
                     state.params.height
             );
             
-            handleCameraUpdate( state, deltatime );
+            handleCameraUpdate( state );
             handleResize( output_buffer, state.params );
             launchSubframe( output_buffer, state );
 
