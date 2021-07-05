@@ -760,7 +760,7 @@ void displayText( const char* text, float x, float y )
     ImGui::Begin( "TextOverlayFG", nullptr,
                   ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
                       | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs );
-    ImGui::TextColored( ImColor( 0.7f, 0.7f, 0.7f, 1.0f ), "%s", text );
+    ImGui::TextColored( ImColor( 0.17f, 0.17f, 0.17f, 1.0f ), "%s", text );
     ImGui::End();
 }
 

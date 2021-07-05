@@ -25,9 +25,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-
-//todo 内存回收！
-
 #include <glad/glad.h> // Needs to be included before gl_interop
 
 #include <cuda_runtime.h>
@@ -50,6 +47,12 @@
 #include <sutil/vec_math.h>
 
 #include <GLFW/glfw3.h>
+// ImGui
+#include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
+
 #include <iomanip>
 #include <cstring>
 
@@ -63,7 +66,7 @@ using std::vector;
 using std::string;
 using std::map;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------- ---
 //
 // Globals
 //
@@ -497,6 +500,35 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 768x768\n";
     std::cerr << "         --help | -h                 Print this usage message\n";
     exit( 0 );
+}
+
+void displayHUD(float width, float height) {
+    constexpr std::chrono::duration<double> display_update_min_interval_time( 0.5 );
+    static int32_t                          total_subframe_count = 0;
+    static int32_t                          last_update_frames   = 0;
+    static auto                             last_update_time     = std::chrono::steady_clock::now();
+    static char                             display_text[128];
+
+    const auto cur_time = std::chrono::steady_clock::now();
+
+    sutil::beginFrameImGui();
+
+    last_update_frames++;
+
+    typedef std::chrono::duration<double, std::milli> durationMs;
+
+    char* sCenter = "    |\n    |\n----+----\n    |\n    |";
+    //todo imgui 字体大小/缩放
+    float font_size_x = 80;
+    float font_size_y = 80;
+
+    sutil::displayText( sCenter,
+                        width/2 - font_size_x / 2,
+                        height/2 - font_size_y / 2 );
+
+    sutil::endFrameImGui();
+
+    ++total_subframe_count;
 }
 
 void initLaunchParams( WhittedState& state )
@@ -1457,7 +1489,8 @@ int main( int argc, char* argv[] )
                     t1 = std::chrono::steady_clock::now();
                     display_time += t1 - t0;
 
-                    sutil::displayStats( state_update_time, render_time, display_time );
+                    displayHUD(state.params.width, state.params.height);
+                    // sutil::displayStats( state_update_time, render_time, display_time );
 
                     glfwSwapBuffers( window );
 
