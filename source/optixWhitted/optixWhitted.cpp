@@ -185,6 +185,8 @@ public:
     virtual void set_bound(float result[6]) = 0;
     virtual uint32_t get_input_flag() = 0;
     virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
+    virtual float3 get_center() {return {0, 0, 0};}
+    virtual float get_horizontal_size() = 0;
     virtual bool check_collide_at(float3 pos) = 0;
 };
 
@@ -233,6 +235,12 @@ public:
                 state.occlusion_metal_sphere_prog_group,
                 &hgr[idx+1] ) );
         hgr[idx+1].data.geometry.sphere = args;
+    }
+    float3 get_center() override {
+        return args.center;
+    } 
+    float get_horizontal_size() override {
+        return args.radius;
     }
     bool check_collide_at(float3 pos) override {
         // 这里理应有个eps，但是应该问题不大
@@ -294,6 +302,12 @@ public:
         hgr[idx+1].data.geometry.sphere_shell = args;
         hgr[idx+1].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
     }
+    float3 get_center() override {
+        return args.center;
+    } 
+    float get_horizontal_size() override {
+        return args.radius2;
+    }
     bool check_collide_at(float3 pos) override {
         // 这里理应有个eps，但是应该问题不大
         if(calc_distance(args.center, pos) <= args.radius2) {
@@ -352,6 +366,12 @@ public:
             state.occlusion_metal_cube_prog_group,
             &hgr[idx + 1]));
         hgr[idx + 1].data.geometry.cube = args;
+    }
+    float3 get_center() override {
+        return args.center;
+    } 
+    float get_horizontal_size() override {
+        return std::max(args.size.x, args.size.z);
     }
     bool check_collide_at(float3 pos) override {
         // 这里相当于，将pos表示在以args.center为原点的坐标系之下
@@ -425,6 +445,9 @@ public:
         hgr[idx+1].data.geometry.parallelogram = args;
 
     }
+    float get_horizontal_size() override {
+        return 0.f;
+    }
     bool check_collide_at(float3 pos) override {
         return false;
     }
@@ -435,6 +458,30 @@ vector<cModel*> modelLst;
 bool get_model_at(float3 pos, cModel*& pmodel) {
     for(auto& pm: modelLst) {
         if(pm->collidable && pm->check_collide_at(pos)) {
+            pmodel = pm;
+            return true;
+        }
+    }
+    return false;
+}
+
+// 检测两个Cube之间是否碰撞，但是我们仅检测水平方向上的体积
+// 而且我们默认它们x、z上的size是相等大小的
+bool check_collide(cModel*& pcheck, cModel*& pmodel) {
+    if(!pcheck->collidable) return false;
+    if(pcheck->get_type() != "Cube" || pmodel->get_type() != "Cube") {
+        std::cerr << "[WARNING] check_collide can only be used for cube collide checks!\n";
+        return false;
+    }
+    float3 checkCenter = pcheck->get_center();
+    float checkSize = pcheck->get_horizontal_size();
+    for(auto& pm: modelLst) {
+        float3 pmCenter = pm->get_center();
+        float pmSize = pm->get_horizontal_size();
+        if(pm->collidable
+        && checkCenter.y == pmCenter.y 
+        && fabs(checkCenter.x - pmCenter.x) < checkSize + pmSize
+        && fabs(checkCenter.z - pmCenter.z) < checkSize + pmSize) {
             pmodel = pm;
             return true;
         }
