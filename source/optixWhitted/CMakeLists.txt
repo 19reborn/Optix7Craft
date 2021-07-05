@@ -34,6 +34,7 @@ OPTIX_add_sample_executable( optixWhitted target_name
   camera.cu
   geometry.cu
   shading.cu
+  cube.cu
   OPTIONS -rdc true
   )
 

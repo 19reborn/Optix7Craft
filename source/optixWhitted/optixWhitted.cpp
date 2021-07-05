@@ -25,9 +25,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-
-//todo 内存回收！
-
 #include <glad/glad.h> // Needs to be included before gl_interop
 
 #include <cuda_runtime.h>
@@ -50,6 +47,12 @@
 #include <sutil/vec_math.h>
 
 #include <GLFW/glfw3.h>
+// ImGui
+#include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
+
 #include <iomanip>
 #include <cstring>
 
@@ -64,8 +67,7 @@ using std::vector;
 using std::string;
 using std::map;
 
-
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------- ---
 //
 // Globals
 //
@@ -96,6 +98,9 @@ int32_t           mouse_button = -1;
 
 const int         max_trace = 12;
 
+// Model state
+bool              model_need_update = false;
+
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -125,6 +130,7 @@ struct WhittedState {
     OptixModule                 camera_module             = 0;
     OptixModule                 shading_module            = 0;
     OptixModule                 sphere_module             = 0;
+    OptixModule                 cube_module             = 0;
 
     OptixProgramGroup           raygen_prog_group         = 0;
     OptixProgramGroup           radiance_miss_prog_group  = 0;
@@ -133,6 +139,8 @@ struct WhittedState {
     OptixProgramGroup           occlusion_glass_sphere_prog_group = 0;
     OptixProgramGroup           radiance_metal_sphere_prog_group  = 0;
     OptixProgramGroup           occlusion_metal_sphere_prog_group = 0;
+    OptixProgramGroup           radiance_metal_cube_prog_group = 0;
+    OptixProgramGroup           occlusion_metal_cube_prog_group = 0;
     OptixProgramGroup           radiance_floor_prog_group         = 0;
     OptixProgramGroup           occlusion_floor_prog_group        = 0;
 
@@ -262,6 +270,52 @@ public:
     }
 
 };
+
+class cCube : public cModel {
+public:
+    Cube args;
+
+    cCube(float3 c, float3 s) {
+        std::cerr << "[INFO] A Cube Generated.\n";
+        args.center = c;
+        args.size = s;
+    }
+
+    string get_type() { return "Cube"; }
+    void set_bound(float result[6]) override {
+        auto* aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = args.center - args.size;
+        float3 m_max = args.center + args.size;
+
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.radiance_metal_cube_prog_group,
+            &hgr[idx]));
+        hgr[idx].data.geometry.cube = args;
+        hgr[idx].data.shading.metal = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.2f, 0.7f, 0.8f },   // Kd
+                { 0.9f, 0.9f, 0.9f },   // Ks
+                { 0.5f, 0.5f, 0.5f },   // Kr
+                64,                     // phong_exp
+        };
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.occlusion_metal_cube_prog_group,
+            &hgr[idx + 1]));
+        hgr[idx + 1].data.geometry.cube = args;
+    }
+
+};
+
 
 class cRect: public cModel {
 public:
@@ -422,6 +476,12 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         {
             switchcam = true;// a test button. @@todo: change controlled entity.
         }
+
+        // ball place for test
+        if (key == GLFW_KEY_E) {
+            modelLst.push_back(new cSphereShell({ 4.0f, 2.3f, -4.0f }, 0.96f, 1.0f));
+            model_need_update = true;
+        }
     }
     else if (action == GLFW_RELEASE)
     {
@@ -464,6 +524,35 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 768x768\n";
     std::cerr << "         --help | -h                 Print this usage message\n";
     exit( 0 );
+}
+
+void displayHUD(float width, float height) {
+    constexpr std::chrono::duration<double> display_update_min_interval_time( 0.5 );
+    static int32_t                          total_subframe_count = 0;
+    static int32_t                          last_update_frames   = 0;
+    static auto                             last_update_time     = std::chrono::steady_clock::now();
+    static char                             display_text[128];
+
+    const auto cur_time = std::chrono::steady_clock::now();
+
+    sutil::beginFrameImGui();
+
+    last_update_frames++;
+
+    typedef std::chrono::duration<double, std::milli> durationMs;
+
+    char* sCenter = "    |\n    |\n----+----\n    |\n    |";
+    //todo imgui 字体大小/缩放
+    float font_size_x = 80;
+    float font_size_y = 80;
+
+    sutil::displayText( sCenter,
+                        width/2 - font_size_x / 2,
+                        height/2 - font_size_y / 2 );
+
+    sutil::endFrameImGui();
+
+    ++total_subframe_count;
 }
 
 void initLaunchParams( WhittedState& state )
@@ -627,6 +716,9 @@ void createGeometry( WhittedState &state ) {
             state.d_gas_output_buffer);
 
     CUDA_CHECK( cudaFree( (void*)d_aabb) );
+
+    free(aabb);
+    free(sbt_index);
 }
 
 void createModules( WhittedState &state )
@@ -691,6 +783,21 @@ void createModules( WhittedState &state )
                 &sizeof_log,
                 &state.sphere_module ) );
     }
+    
+    {
+        size_t      inputSize = 0;
+        const char* input = sutil::getInputData(OPTIX_SAMPLE_NAME, OPTIX_SAMPLE_DIR, "cube.cu", inputSize);
+        OPTIX_CHECK_LOG(optixModuleCreateFromPTX(
+            state.context,
+            &module_compile_options,
+            &state.pipeline_compile_options,
+            input,
+            inputSize,
+            log,
+            &sizeof_log,
+            &state.cube_module));
+    }
+    
 }
 
 static void createCameraProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
@@ -799,7 +906,7 @@ static void createMetalSphereProgram( WhittedState &state, std::vector<OptixProg
     OptixProgramGroupOptions    occlusion_sphere_prog_group_options = {};
     OptixProgramGroupDesc       occlusion_sphere_prog_group_desc = {};
     occlusion_sphere_prog_group_desc.kind   = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
-            occlusion_sphere_prog_group_desc.hitgroup.moduleIS           = state.sphere_module;
+    occlusion_sphere_prog_group_desc.hitgroup.moduleIS           = state.sphere_module;
     occlusion_sphere_prog_group_desc.hitgroup.entryFunctionNameIS    = "__intersection__sphere";
     occlusion_sphere_prog_group_desc.hitgroup.moduleCH               = state.shading_module;
     occlusion_sphere_prog_group_desc.hitgroup.entryFunctionNameCH    = "__closesthit__full_occlusion";
@@ -817,6 +924,57 @@ static void createMetalSphereProgram( WhittedState &state, std::vector<OptixProg
 
     program_groups.push_back(occlusion_sphere_prog_group);
     state.occlusion_metal_sphere_prog_group = occlusion_sphere_prog_group;
+}
+
+static void createMetalCubeProgram(WhittedState& state, std::vector<OptixProgramGroup>& program_groups)
+{
+    OptixProgramGroup           radiance_cube_prog_group;
+    OptixProgramGroupOptions    radiance_cube_prog_group_options = {};
+    OptixProgramGroupDesc       radiance_cube_prog_group_desc = {};
+    radiance_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+    radiance_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    radiance_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__metal_radiance";
+    radiance_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    char    log[2048];
+    size_t  sizeof_log = sizeof(log);
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &radiance_cube_prog_group_desc,
+        1,
+        &radiance_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &radiance_cube_prog_group));
+
+    program_groups.push_back(radiance_cube_prog_group);
+    state.radiance_metal_cube_prog_group = radiance_cube_prog_group;
+
+    OptixProgramGroup           occlusion_cube_prog_group;
+    OptixProgramGroupOptions    occlusion_cube_prog_group_options = {};
+    OptixProgramGroupDesc       occlusion_cube_prog_group_desc = {};
+    occlusion_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+    occlusion_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    occlusion_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__full_occlusion";
+    occlusion_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &occlusion_cube_prog_group_desc,
+        1,
+        &occlusion_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &occlusion_cube_prog_group));
+
+    program_groups.push_back(occlusion_cube_prog_group);
+    state.occlusion_metal_cube_prog_group = occlusion_cube_prog_group;
 }
 
 static void createFloorProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
@@ -925,6 +1083,7 @@ void createPipeline( WhittedState &state )
     createCameraProgram( state, program_groups );
     createGlassSphereProgram( state, program_groups );
     createMetalSphereProgram( state, program_groups );
+    createMetalCubeProgram( state, program_groups );
     createFloorProgram( state, program_groups );
     createMissProgram( state, program_groups );
 
@@ -1045,6 +1204,8 @@ void createSBT( WhittedState &state )
         state.sbt.hitgroupRecordBase            = d_hitgroup_records;
         state.sbt.hitgroupRecordCount           = count_records;
         state.sbt.hitgroupRecordStrideInBytes   = static_cast<uint32_t>( sizeof_hitgroup_record );
+
+        free(hitgroup_records);
     }
 }
 
@@ -1070,8 +1231,19 @@ void createContext( WhittedState& state )
     state.context = context;
 }
 
+bool detectModelUpdate(WhittedState& state) {
+    if(model_need_update) {
+        createGeometry  ( state );
+        createSBT      ( state );
+        initLaunchParams( state );
+        model_need_update = false;
+        return true;
+    }
+    return false;
+}
+
 //
-//
+// Camera
 //
 void initEntitySystem()
 {
@@ -1195,6 +1367,11 @@ void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &
 
     handleCameraUpdate( state );
     handleResize( output_buffer, state.params );
+
+    // if we place a new model, then update
+    if(detectModelUpdate(state)) {
+        output_buffer.setStream( state.stream );
+    }
 }
 
 void launchSubframe( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState& state )
@@ -1252,6 +1429,8 @@ void cleanupState( WhittedState& state )
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_metal_sphere_prog_group ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_glass_sphere_prog_group ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_glass_sphere_prog_group ) );
+    OPTIX_CHECK( optixProgramGroupDestroy  ( state.radiance_metal_cube_prog_group   ) );
+    OPTIX_CHECK( optixProgramGroupDestroy  ( state.occlusion_metal_cube_prog_group  ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_miss_prog_group         ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_floor_prog_group        ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_floor_prog_group       ) );
@@ -1321,8 +1500,11 @@ int main( int argc, char* argv[] )
         //
         modelLst.push_back(new cSphere({ 2.0f, 1.5f, -2.5f }, 1.0f));
         
-        for(int i=1; i<=10; i++)
-            modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
+        // for(int i=1; i<=10; i++)
+        //     if(i%2)
+        //         modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
+        //     else
+        //         modelLst.push_back(new cCube({ 4.0f, 0.3f + 2.f * i, -4.0f }, { 1.0f, 1.0f, 1.0f }));
 
         modelLst.push_back(new cRect(
             make_float3( 32.0f, 0.0f, 0.0f ),
@@ -1399,7 +1581,8 @@ int main( int argc, char* argv[] )
                     t1 = std::chrono::steady_clock::now();
                     display_time += t1 - t0;
 
-                    sutil::displayStats( state_update_time, render_time, display_time );
+                    displayHUD(state.params.width, state.params.height);
+                    // sutil::displayStats( state_update_time, render_time, display_time );
 
                     glfwSwapBuffers( window );
 
