@@ -72,8 +72,12 @@ using std::map;
 bool              resize_dirty  = false;
 bool              minimized     = false;
 map<char, bool>   key_value;
-float camera_speed = 0.03f; 
+float camera_speed = 6.5f; 
 int wscnt = 0, adcnt = 0;
+float dashfov = 1.0f, fovStarttime = 0.f, curFov = 0.f;
+float lastframe = 0.f;
+float deltatime = 0.f;
+bool dash = false;
 // Camera state
 sutil::Camera     camera;
 sutil::Trackball  trackball;
@@ -401,6 +405,13 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_A) key_value['a'] = true, adcnt++;
         if (key == GLFW_KEY_S) key_value['s'] = true, wscnt--;
         if (key == GLFW_KEY_D) key_value['d'] = true, adcnt--;
+        if (key == GLFW_KEY_LEFT_SHIFT)
+        {
+            camera_speed = 15.f;
+            dash = true;
+            fovStarttime = glfwGetTime();
+            curFov = camera.fovY();
+        }
     }
     else if (action == GLFW_RELEASE)
     {
@@ -408,6 +419,13 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_A) key_value['a'] = false, adcnt--;
         if (key == GLFW_KEY_S) key_value['s'] = false, wscnt++;
         if (key == GLFW_KEY_D) key_value['d'] = false, adcnt++;
+        if (key == GLFW_KEY_LEFT_SHIFT)
+        {
+            camera_speed = 6.5f;
+            dash = false; 
+            fovStarttime = glfwGetTime();
+            curFov = camera.fovY();
+        }
     }
     else if( key == GLFW_KEY_G )
     {
@@ -1061,7 +1079,7 @@ void initCameraState()
     trackball.setGimbalLock(true);
 }
 
-void handleCameraUpdate( WhittedState &state )
+void handleCameraUpdate( WhittedState &state,float delta )
 {
 
     float3 direction(make_float3(0.0f));
@@ -1076,9 +1094,22 @@ void handleCameraUpdate( WhittedState &state )
         direction = normalize(direction);
     }
     
+    
     camera.setAspectRatio( static_cast<float>( state.params.width ) / static_cast<float>( state.params.height ) );
-    camera.setEye(camera.eye() + camera_speed * direction);
-    camera.setLookat(camera.lookat() + camera_speed * direction);
+    camera.setEye(camera.eye() + camera_speed * delta * direction);
+    camera.setLookat(camera.lookat() + camera_speed * delta * direction);
+
+    if (dash)
+    {
+        float curTime = glfwGetTime();
+        if (camera.fovY()<90.f)
+        {
+        }
+        
+    }
+    
+    
+
     CameraData camData;
     camData.eye = camera.eye();
     camera.UVWFrame( camData.U, camData.V, camData.W );
@@ -1102,13 +1133,13 @@ void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& param
     ) );
 }
 
-void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state )
+void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state,float  delta )
 {
     // Update params on device
 
     state.params.subframe_index = 0;
 
-    handleCameraUpdate( state );
+    handleCameraUpdate( state ,delta);
     handleResize( output_buffer, state.params );
 }
 
@@ -1291,10 +1322,14 @@ int main( int argc, char* argv[] )
 
                 do
                 {
+                    float currentframe = glfwGetTime();
+                    deltatime = currentframe - lastframe;
+                    lastframe = currentframe;
+
                     auto t0 = std::chrono::steady_clock::now();
                     glfwPollEvents();
 
-                    updateState( output_buffer, state );
+                    updateState( output_buffer, state, deltatime );
                     auto t1 = std::chrono::steady_clock::now();
                     state_update_time += t1 - t0;
                     t0 = t1;
@@ -1321,6 +1356,9 @@ int main( int argc, char* argv[] )
         }
         else
         {
+            float currentframe = glfwGetTime();
+            deltatime = currentframe - lastframe;
+            lastframe = currentframe;
             if ( output_buffer_type == sutil::CUDAOutputBufferType::GL_INTEROP )
             {
                 sutil::initGLFW(); // For GL context
@@ -1332,8 +1370,8 @@ int main( int argc, char* argv[] )
                     state.params.width,
                     state.params.height
             );
-
-            handleCameraUpdate( state );
+            
+            handleCameraUpdate( state, deltatime );
             handleResize( output_buffer, state.params );
             launchSubframe( output_buffer, state );
 
