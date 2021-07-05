@@ -156,13 +156,27 @@ struct WhittedState {
 
 //------------------------------------------------------------------------------
 //
-//  Model Classes
+//  Geometry Helper Functions
+//
+//------------------------------------------------------------------------------
+inline float pow2(float f) {
+    return f*f;
+}
+
+float calc_distance(float3 a, float3 b) {
+    return sqrt(pow2(a.x - b.x) + pow2(a.y - b.y) + pow2(a.z - b.z));
+}
+
+//------------------------------------------------------------------------------
+//
+//  Model Classes and Functions
 //
 //------------------------------------------------------------------------------
 class cModel {
 public:
     static uint32_t OBJ_COUNT;
     int ID;
+    bool collidable;    // 是否可以碰撞
 
     cModel() {
         ID = ++OBJ_COUNT;
@@ -171,6 +185,7 @@ public:
     virtual void set_bound(float result[6]) = 0;
     virtual uint32_t get_input_flag() = 0;
     virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
+    virtual bool check_collide_at(float3 pos) = 0;
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
@@ -183,6 +198,7 @@ public:
         std::cerr << "[INFO] A Sphere Generated.\n";
         args.center = c;
         args.radius = r;
+        collidable = true;
     }
 
     string get_type() {return "Sphere";}
@@ -218,7 +234,13 @@ public:
                 &hgr[idx+1] ) );
         hgr[idx+1].data.geometry.sphere = args;
     }
-
+    bool check_collide_at(float3 pos) override {
+        // 这里理应有个eps，但是应该问题不大
+        if(calc_distance(args.center, pos) <= args.radius) {
+            return true;
+        }
+        return false;
+    }
 };
 
 class cSphereShell: public cModel {
@@ -230,6 +252,7 @@ public:
         args.center = c;
         args.radius1 = r1;
         args.radius2 = r2;
+        collidable = true;
     }
     string get_type() {return "SphereShell";}
     void set_bound(float result[6]) override {
@@ -271,17 +294,31 @@ public:
         hgr[idx+1].data.geometry.sphere_shell = args;
         hgr[idx+1].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
     }
-
+    bool check_collide_at(float3 pos) override {
+        // 这里理应有个eps，但是应该问题不大
+        if(calc_distance(args.center, pos) <= args.radius2) {
+            return true;
+        }
+        return false;
+    }
 };
 
 class cCube : public cModel {
 public:
     Cube args;
 
+    cCube(float3 c, float s) {
+        std::cerr << "[INFO] A Cube Generated.\n";
+        args.center = c;
+        args.size = {s, s, s};
+        collidable = true;
+    }
+
     cCube(float3 c, float3 s) {
         std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = s;
+        collidable = true;
     }
 
     string get_type() { return "Cube"; }
@@ -316,7 +353,20 @@ public:
             &hgr[idx + 1]));
         hgr[idx + 1].data.geometry.cube = args;
     }
-
+    bool check_collide_at(float3 pos) override {
+        // 这里相当于，将pos表示在以args.center为原点的坐标系之下
+        float dx = pos.x - args.center.x;
+        float dy = pos.y - args.center.y;
+        float dz = pos.z - args.center.z;
+        // 先判断在不在面上
+        if(fabs(dx) == args.size.x) return true;
+        if(fabs(dy) == args.size.y) return true;
+        if(fabs(dz) == args.size.z) return true;
+        // 再判断在不在里面
+        if(fabs(dx) < args.size.x && fabs(dy) < args.size.y && fabs(dz) < args.size.z)  
+            return true;
+        return false;
+    }
 };
 
 
@@ -327,7 +377,7 @@ public:
     cRect(float3 v1, float3 v2, float3 anchor) {
         std::cerr << "[INFO] A Rect Generated.\n";
         args = { v1,v2,anchor };
-
+        collidable = false;
     }
     string get_type() {return "Rect";}
     void set_bound(float result[6]) override {
@@ -375,10 +425,22 @@ public:
         hgr[idx+1].data.geometry.parallelogram = args;
 
     }
-
+    bool check_collide_at(float3 pos) override {
+        return false;
+    }
 };
 
 vector<cModel*> modelLst;
+
+bool get_model_at(float3 pos, cModel*& pmodel) {
+    for(auto& pm: modelLst) {
+        if(pm->collidable && pm->check_collide_at(pos)) {
+            pmodel = pm;
+            return true;
+        }
+    }
+    return false;
+}
 
 //------------------------------------------------------------------------------
 //
