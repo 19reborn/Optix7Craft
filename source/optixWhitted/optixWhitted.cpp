@@ -476,9 +476,10 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         {
             switchcam = true;// a test button. @@todo: change controlled entity.
         }
-        if (key == GLFW_KEY_SPACE)
+        if (key == GLFW_KEY_SPACE && control->isOnGround)
         {
-
+            control->isOnGround = false;
+            control->acceleration += make_float3(0.f, camera_speed * 100.f, 0.f);
         }
 
         // ball place for test
@@ -1288,12 +1289,13 @@ void updateEntity(float dt)//the motion of entities in dt time
     for (auto& ent : entList)
     {
         ent->velocity += ent->acceleration;
-        if (!ent->isOnGround) ent->velocity = ent->velocity + make_float3(0.f, -40.f * dt, 0.f);
+        if (!ent->isOnGround) ent->velocity = ent->velocity + make_float3(0.f, -40.f*dt, 0.f);
         ent->acceleration = make_float3(0.f, 0.f, 0.f);
         ent->pos += ent->velocity * dt;
         ent->eye += ent->velocity * dt;
         ent->lookat += ent->velocity * dt;
-        ent->velocity *= 0.97f;
+        ent->velocity.x *= 0.97f;
+        ent->velocity.z *= 0.97f;
     }
 
 }
