@@ -1101,11 +1101,10 @@ void handleCameraUpdate( WhittedState &state,float delta )
 
     if (dash)
     {
-        float curTime = glfwGetTime();
-        if (camera.fovY()<90.f)
-        {
-        }
-        
+        if (camera.fovY() < 75.f) camera.setFovY(camera.fovY() + delta*100.f);
+    }
+    else {
+        if (camera.fovY() > 60.f) camera.setFovY(camera.fovY() - delta*100.f);
     }
     
     
