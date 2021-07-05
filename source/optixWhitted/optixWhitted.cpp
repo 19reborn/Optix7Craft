@@ -162,8 +162,11 @@ struct WhittedState {
 class cModel {
 public:
     static uint32_t OBJ_COUNT;
+    int ID;
 
-    cModel() {OBJ_COUNT++;}
+    cModel() {
+        ID = ++OBJ_COUNT;
+    }
     virtual string get_type() = 0;
     virtual void set_bound(float result[6]) = 0;
     virtual uint32_t get_input_flag() = 0;
@@ -576,7 +579,7 @@ void displayHUD(float width, float height) {
 
     typedef std::chrono::duration<double, std::milli> durationMs;
 
-    char* sCenter = "    |\n    |\n----+----\n    |\n    |";
+    const char* sCenter = "    |\n    |\n----+----\n    |\n    |";
     //todo imgui 字体大小/缩放
     float font_size_x = 80;
     float font_size_y = 80;
