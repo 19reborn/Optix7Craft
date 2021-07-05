@@ -620,6 +620,16 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
             modelLst.push_back(new cSphereShell({ 4.0f, 2.3f, -4.0f }, 0.96f, 1.0f));
             model_need_update = true;
         }
+        int curWidth = 0, curHeight = 0;
+        glfwGetWindowSize(window, &curWidth, &curHeight);
+        // make the window smaller
+        if (key == GLFW_KEY_F10) {
+            glfwSetWindowSize(window, curWidth/1.2f, curHeight/1.2f);
+        }
+        // make the window GREAT again
+        if (key == GLFW_KEY_F11) {
+            glfwSetWindowSize(window, curWidth*1.2f, curHeight*1.2f);
+        }
     }
     else if (action == GLFW_RELEASE)
     {
@@ -1678,21 +1688,14 @@ int main( int argc, char* argv[] )
         //
         // Add basic models
         //
-        modelLst.push_back(new cSphere({ 2.0f, 1.5f, -2.5f }, 1.0f));
-        
-        // for(int i=1; i<=10; i++)
-        //     if(i%2)
-        //         modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
-        //     else
-        //         modelLst.push_back(new cCube({ 4.0f, 0.3f + 2.f * i, -4.0f }, { 1.0f, 1.0f, 1.0f }));
-
-        modelLst.push_back(new cRect(
-            make_float3( 32.0f, 0.0f, 0.0f ),
-            make_float3( 0.0f, 0.0f, 16.0f ),
-            make_float3( -16.0f, 0.01f, -8.0f )
-        ));
-        
-        modelLst.push_back(new cSphere({ 6.0f, 1.5f, -2.5f }, 1.0f));
+        for(int i=0; i<10; i++) {
+            for(int j=0; j<10; j++) {
+                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f));
+            }
+        }
+        modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f));
+        modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f));
+        modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f));
 
         initEntitySystem();
 
