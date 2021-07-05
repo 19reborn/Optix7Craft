@@ -57,8 +57,11 @@
 
 #include <vector>
 #include <string>
+#include <algorithm>
+#include <map>
 using std::vector;
 using std::string;
+using std::map;
 
 //------------------------------------------------------------------------------
 //
@@ -68,7 +71,9 @@ using std::string;
 
 bool              resize_dirty  = false;
 bool              minimized     = false;
-
+map<char, bool>   key_value;
+float camera_speed = 0.05f; 
+int wasdcnt = 0;
 // Camera state
 bool              camera_changed = true;
 sutil::Camera     camera;
@@ -401,7 +406,7 @@ static void cursorPosCallback( GLFWwindow* window, double xpos, double ypos )
         trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
         camera_changed = true;
     }
-    else if( mouse_button == GLFW_MOUSE_BUTTON_RIGHT )
+    else 
     {
         trackball.setViewMode( sutil::Trackball::EyeFixed );
         trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
@@ -435,6 +440,7 @@ static void windowIconifyCallback( GLFWwindow* window, int32_t iconified )
 
 static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/ )
 {
+
     if( action == GLFW_PRESS )
     {
         if( key == GLFW_KEY_Q ||
@@ -442,6 +448,17 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         {
             glfwSetWindowShouldClose( window, true );
         }
+        if (key == GLFW_KEY_W) key_value['w'] = true;
+        if (key == GLFW_KEY_A) key_value['a'] = true;
+        if (key == GLFW_KEY_S) key_value['s'] = true;
+        if (key == GLFW_KEY_D) key_value['d'] = true;
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        if (key == GLFW_KEY_W) key_value['w'] = false;
+        if (key == GLFW_KEY_A) key_value['a'] = false;
+        if (key == GLFW_KEY_S) key_value['s'] = false;
+        if (key == GLFW_KEY_D) key_value['d'] = false;
     }
     else if( key == GLFW_KEY_G )
     {
@@ -634,6 +651,9 @@ void createGeometry( WhittedState &state ) {
             state.d_gas_output_buffer);
 
     CUDA_CHECK( cudaFree( (void*)d_aabb) );
+
+    free(aabb);
+    free(sbt_index);
 }
 
 void createModules( WhittedState &state )
@@ -1119,6 +1139,8 @@ void createSBT( WhittedState &state )
         state.sbt.hitgroupRecordBase            = d_hitgroup_records;
         state.sbt.hitgroupRecordCount           = count_records;
         state.sbt.hitgroupRecordStrideInBytes   = static_cast<uint32_t>( sizeof_hitgroup_record );
+
+        free(hitgroup_records);
     }
 }
 
@@ -1164,11 +1186,20 @@ void initCameraState()
 
 void handleCameraUpdate( WhittedState &state )
 {
-    if( !camera_changed )
-        return;
+ 
     camera_changed = false;
 
+    float3 direction(make_float3(0.0f));
+    float3 camera_target_vector = camera.direction();
+    float3 camera_normal_vector = cross(camera.up() , camera.direction());
+    if (key_value['w']) direction += normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+    if (key_value['s']) direction -= normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+    if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+    if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+
     camera.setAspectRatio( static_cast<float>( state.params.width ) / static_cast<float>( state.params.height ) );
+    camera.setEye(camera.eye() + camera_speed * direction);
+    camera.setLookat(camera.lookat() + camera_speed * direction);
     CameraData camData;
     camData.eye = camera.eye();
     camera.UVWFrame( camData.U, camData.V, camData.W );
