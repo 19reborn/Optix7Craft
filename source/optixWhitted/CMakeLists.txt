@@ -31,6 +31,8 @@ OPTIX_add_sample_executable( optixWhitted target_name
   sunsky.hpp
   optixWhitted.cpp
   optixWhitted.h
+  collideBox.h
+  entity.h
   camera.cu
   geometry.cu
   shading.cu

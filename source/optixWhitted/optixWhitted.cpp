@@ -25,9 +25,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-
-//todo 内存回收！
-
 #include <glad/glad.h> // Needs to be included before gl_interop
 
 #include <cuda_runtime.h>
@@ -50,21 +47,30 @@
 #include <sutil/vec_math.h>
 
 #include <GLFW/glfw3.h>
+// ImGui
+#include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
+
 #include <iomanip>
 #include <cstring>
 
+#include "collideBox.h"
+#include "entity.h"
 #include "optixWhitted.h"
 
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <map>
+#include <unordered_map>
 using std::vector;
 using std::string;
 using std::map;
+using std::unordered_map;
 
-
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------- ---
 //
 // Globals
 //
@@ -72,13 +78,27 @@ using std::map;
 
 bool              resize_dirty  = false;
 bool              minimized     = false;
+float lastframe = 0.f;
+float deltatime = 0.f;
+
+//Keyboard mapping
 map<char, bool>   key_value;
-float camera_speed = 0.05f; 
-int wasdcnt = 0;
+int wscnt = 0, adcnt = 0, sccnt = 0;
+bool sprint = false;
+
+
 // Camera state
-bool              camera_changed = true;
+float camera_speed = 0.23f;
 sutil::Camera     camera;
 sutil::Trackball  trackball;
+std::vector<Creature*> crtList;//Entity list, the entList[0] is our player.
+Creature* player = nullptr;//refer to entList[0]. Binding process located in void initEntitySystem()
+Creature* control = nullptr;//refer to the entity you are controlling.
+bool switchcam = true; //Whenever you wanna change printer control, give this bool a TRUE value
+
+
+
+
 
 // Mouse state
 int32_t           mouse_button = -1;
@@ -144,30 +164,232 @@ struct WhittedState {
 
 //------------------------------------------------------------------------------
 //
-//  Model Classes
+//  Geometry Helper Functions
+//
+//------------------------------------------------------------------------------
+inline float pow2(float f) {
+    return f*f;
+}
+
+float calc_distance(float3 a, float3 b) {
+    return sqrt(pow2(a.x - b.x) + pow2(a.y - b.y) + pow2(a.z - b.z));
+}
+float cceil(float f)
+{
+    if (f == ceil(f)) return f + 1.f;
+    return ceil(f);
+}
+float ffloor(float f )
+{
+    if (f == floor(f)) return f - 1.f;
+    return floor(f);
+}
+float fsign(float f)
+{
+    if (f > 0) return 1.f;
+    return -1.f;
+}
+float3 f3ceil(float3& a)
+{
+    return make_float3(cceil(a.x), cceil(a.y), cceil(a.z));
+}
+float3 f3floor(float3& a)
+{
+    return make_float3(ffloor(a.x), ffloor(a.y), ffloor(a.z));
+}
+float3 f3abs(float3& a)
+{
+    return make_float3(fabs(a.x), fabs(a.y), fabs(a.z));
+}
+float3 nearCeil(float3& a,float3& vec)
+{
+    float3 tar;
+    if (vec.x > 0) tar.x = cceil(a.x);
+    else tar.x = ffloor(a.x);
+
+    if (vec.y > 0) tar.y = cceil(a.y);
+    else tar.y = ffloor(a.y);
+
+    if (vec.z > 0) tar.z = cceil(a.z);
+    else tar.z = ffloor(a.z);
+
+    if (vec.x == 0 && vec.y == 0)
+    {
+        return make_float3(a.x, a.y, tar.z);
+    }
+    else if (vec.x == 0 && vec.z == 0)
+    {
+        return make_float3(a.x, tar.y, a.z);
+    }
+    else if (vec.y == 0 && vec.z == 0)
+    {
+        return make_float3(tar.x, a.y, a.z);
+    }
+    else if (vec.x == 0)
+    {
+        if (fabs(vec.y * (a.z - tar.z)) > fabs(vec.z * (a.y - tar.y)))
+        {
+            return make_float3(a.x,
+                             tar.y,
+                             a.z + vec.z * fabs((tar.y - a.y) / vec.y));
+        }
+        else {
+            return make_float3(a.x,
+                a.y + vec.y * fabs((tar.z - a.z) / vec.z),
+                tar.z);
+        }
+    }
+    else if (vec.y == 0)
+    {
+        if (fabs(vec.x * (a.z - tar.z)) > fabs(vec.z * (a.x - tar.x)))
+        {
+            return make_float3(tar.x,
+                a.y,
+                a.z + vec.z * fabs((tar.x - a.x) / vec.x));
+        }
+        else {
+            return make_float3(a.x + vec.x * fabs((tar.z - a.z) / vec.z),
+                a.y,
+                tar.z);
+        }
+    }
+    else if (vec.z == 0)
+    {
+        if (fabs(vec.x * (a.y - tar.y)) > fabs(vec.y * (a.x - tar.x)))
+        {
+            return make_float3(tar.x,
+                a.y + vec.y * fabs((tar.x - a.x) / vec.x),
+                a.z);
+        }
+        else {
+            return make_float3(a.x + vec.x * fabs((tar.y - a.y) / vec.y),
+                tar.y,
+                a.z);
+        }
+    }
+    else {
+        float3 ti = f3abs((tar - a) / vec);
+        if (ti.x <= ti.y && ti.x <= ti.z)
+        {
+            return make_float3(tar.x,
+                a.y + vec.y * fabs((tar.x - a.x) / vec.x),
+                a.z + vec.z * fabs((tar.x - a.x) / vec.x));
+        }
+        else if (ti.y <= ti.x && ti.y <= ti.z)
+        {
+            return make_float3(
+                a.x + vec.x * fabs((tar.y - a.y) / vec.y),
+                tar.y,
+                a.z + vec.z * fabs((tar.y - a.y) / vec.y));
+        }
+        else {
+            return make_float3(
+                a.x + vec.x * fabs((tar.z - a.z) / vec.z),
+                a.y + vec.y * fabs((tar.z - a.z) / vec.z),
+                tar.z);
+        }
+    }
+}
+//------------------------------------------------------------------------------
+//
+//  Model Classes and Functions
 //
 //------------------------------------------------------------------------------
 class cModel {
 public:
     static uint32_t OBJ_COUNT;
+    int ID;
+    bool collidable;    // 是否可以碰撞
+    CollideBox collideBox;
 
-    cModel() {OBJ_COUNT++;}
+    cModel(const CollideBox& cb): collideBox(cb) {
+        ID = ++OBJ_COUNT;
+        set_map_modelAt();
+    }
     virtual string get_type() = 0;
     virtual void set_bound(float result[6]) = 0;
     virtual uint32_t get_input_flag() = 0;
     virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
+    virtual float3 get_center() {return {0, 0, 0};}
+    virtual float get_horizontal_size() = 0;
+    CollideBox& get_collideBox() {return collideBox;}
+    void set_map_modelAt();
+    void clear_map_modelAt();
+    ~cModel() {
+        OBJ_COUNT--;
+    }
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
+
+struct HashFunc_float3 {  
+    std::size_t operator() (const float3 &key) const {  
+        using std::size_t;  
+        using std::hash;  
+  
+        return ((hash<float>()(key.x)  
+            ^ (hash<float>()(key.y) << 1)) >> 1)  
+            ^ (hash<float>()(key.z) << 1);  
+    }  
+};  
+
+struct EqualKey_float3 {  
+    bool operator () (const float3 &lhs, const float3 &rhs) const {  
+        return lhs.x  == rhs.x  
+            && lhs.y  == rhs.y  
+            && lhs.z  == rhs.z;  
+    }  
+};  
+
+unordered_map<float3, cModel*, HashFunc_float3, EqualKey_float3> modelAt;
+
+void cModel::set_map_modelAt() {
+    int xl = collideBox.center.x - collideBox.size.x;
+    int xr = collideBox.center.x + collideBox.size.x;
+    int yl = collideBox.center.y - collideBox.size.y;
+    int yr = collideBox.center.y + collideBox.size.y;
+    int zl = collideBox.center.z - collideBox.size.z;
+    int zr = collideBox.center.z + collideBox.size.z;
+    // 向下取整
+    for(int i=xl; i<xr; i++) {
+        for(int j=yl; j<yr; j++) {
+            for(int k=zl; k<zr; k++) {
+                //todo 在最终版应该要把这里无效化
+                if(modelAt.count(make_float3(i, j, k)) && modelAt[make_float3(i, j, k)] != NULL) {
+                    std::cerr << "[WARNING] (" << i << ", " << j << ", " << k << ") is not empty!\n";
+                }
+                modelAt[make_float3(i, j, k)] = this;
+            }
+        }
+    }
+}
+
+void cModel::clear_map_modelAt() {
+    int xl = collideBox.center.x - collideBox.size.x;
+    int xr = collideBox.center.x + collideBox.size.x;
+    int yl = collideBox.center.y - collideBox.size.y;
+    int yr = collideBox.center.y + collideBox.size.y;
+    int zl = collideBox.center.z - collideBox.size.z;
+    int zr = collideBox.center.z + collideBox.size.z;
+    // 向下取整
+    for(int i=xl; i<xr; i++) {
+        for(int j=yl; j<yr; j++) {
+            for(int k=zl; k<zr; k++) {
+                modelAt[make_float3(i, j, k)] = NULL;
+            }
+        }
+    }
+}
 
 class cSphere: public cModel {
 public:
     GeometryData::Sphere args;
 
-    cSphere(float3 c, float r) {
+    cSphere(float3 c, float r): cModel(CollideBox(c, {r, r, r})) {
         std::cerr << "[INFO] A Sphere Generated.\n";
         args.center = c;
         args.radius = r;
+        collidable = true;
     }
 
     string get_type() {return "Sphere";}
@@ -190,8 +412,7 @@ public:
                 state.radiance_metal_sphere_prog_group,
                 &hgr[idx] ) );
         hgr[idx].data.geometry.sphere = args;
-        //todo 这个玩意应该也要能自定义，但是我们肯定不用球，所以不急
-        //todo 另外，可以继续继承一些类，那些类能初始化一些特定的这些
+
         hgr[idx].data.shading.metal = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
                 { 0.2f, 0.7f, 0.8f },   // Kd
@@ -204,18 +425,24 @@ public:
                 &hgr[idx+1] ) );
         hgr[idx+1].data.geometry.sphere = args;
     }
-
+    float3 get_center() override {
+        return args.center;
+    } 
+    float get_horizontal_size() override {
+        return args.radius;
+    }
 };
 
 class cSphereShell: public cModel {
 public:
     SphereShell args;
 
-    cSphereShell(float3 c, float r1, float r2) {
+    cSphereShell(float3 c, float r1, float r2): cModel(CollideBox(c, {r2, r2, r2})) {
         std::cerr << "[INFO] A SphereShell Generated.\n";
         args.center = c;
         args.radius1 = r1;
         args.radius2 = r2;
+        collidable = true;
     }
     string get_type() {return "SphereShell";}
     void set_bound(float result[6]) override {
@@ -257,17 +484,30 @@ public:
         hgr[idx+1].data.geometry.sphere_shell = args;
         hgr[idx+1].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
     }
-
+    float3 get_center() override {
+        return args.center;
+    } 
+    float get_horizontal_size() override {
+        return args.radius2;
+    }
 };
 
 class cCube : public cModel {
 public:
     Cube args;
 
-    cCube(float3 c, float3 s) {
+    cCube(float3 c, float s): cModel(CollideBox(c, {s, s, s})) {
+        std::cerr << "[INFO] A Cube Generated.\n";
+        args.center = c;
+        args.size = {s, s, s};
+        collidable = true;
+    }
+
+    cCube(float3 c, float3 s): cModel(CollideBox(c, s)) {
         std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = s;
+        collidable = true;
     }
 
     string get_type() { return "Cube"; }
@@ -302,69 +542,35 @@ public:
             &hgr[idx + 1]));
         hgr[idx + 1].data.geometry.cube = args;
     }
-
-};
-
-
-class cRect: public cModel {
-public:
-    Parallelogram args;
-
-    cRect(float3 v1, float3 v2, float3 anchor) {
-        std::cerr << "[INFO] A Rect Generated.\n";
-        args = { v1,v2,anchor };
-
+    float3 get_center() override {
+        return args.center;
+    } 
+    float get_horizontal_size() override {
+        return std::max(args.size.x, args.size.z);
     }
-    string get_type() {return "Rect";}
-    void set_bound(float result[6]) override {
-        // v1 and v2 are scaled by 1./length^2.  Rescale back to normal for the bounds computation.
-        const float3 tv1  = args.v1 / dot( args.v1, args.v1 );
-        const float3 tv2  = args.v2 / dot( args.v2, args.v2 );
-        const float3 p00  = args.anchor;
-        const float3 p01  = args.anchor + tv1;
-        const float3 p10  = args.anchor + tv2;
-        const float3 p11  = args.anchor + tv1 + tv2;
-
-        auto aabb = reinterpret_cast<OptixAabb*>(result);
-
-        float3 m_min = fminf( fminf( p00, p01 ), fminf( p10, p11 ));
-        float3 m_max = fmaxf( fmaxf( p00, p01 ), fmaxf( p10, p11 ));
-        *aabb = {
-                m_min.x, m_min.y, m_min.z,
-                m_max.x, m_max.y, m_max.z
-        };
-    }
-    uint32_t get_input_flag() override {
-        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
-    }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.radiance_floor_prog_group,
-                &hgr[idx] ) );
-        hgr[idx].data.geometry.parallelogram = args;
-        hgr[idx].data.shading.checker = {
-                { 0.8f, 0.3f, 0.15f },      // Kd1
-                { 0.9f, 0.85f, 0.05f },     // Kd2
-                { 0.8f, 0.3f, 0.15f },      // Ka1
-                { 0.9f, 0.85f, 0.05f },     // Ka2
-                { 0.0f, 0.0f, 0.0f },       // Ks1
-                { 0.0f, 0.0f, 0.0f },       // Ks2
-                { 0.0f, 0.0f, 0.0f },       // Kr1
-                { 0.0f, 0.0f, 0.0f },       // Kr2
-                0.0f,                       // phong_exp1
-                0.0f,                       // phong_exp2
-                { 32.0f, 16.0f }            // inv_checker_size
-        };
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.occlusion_floor_prog_group,
-                &hgr[idx+1] ) );
-        hgr[idx+1].data.geometry.parallelogram = args;
-
-    }
-
 };
 
 vector<cModel*> modelLst;
+
+//Interation Variables
+cModel* intersectBlock;
+float3 intersectPoint = make_float3(0.f, 114514.1919810f, 0.f);
+bool istargeted = false;
+
+
+bool get_model_at(float3 pos, cModel*& pmodel) {
+    float3 key = pos;
+    key.x = floor(key.x);
+    key.y = floor(key.y);
+    key.z = floor(key.z);
+    
+    if(modelAt.count(key) && modelAt[key] != NULL) {
+        pmodel = modelAt[key];
+        return true;
+    }
+
+    return false;
+}
 
 //------------------------------------------------------------------------------
 //
@@ -403,7 +609,56 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
     if( action == GLFW_PRESS )
     {
         mouse_button = button;
-        trackball.startTracking(static_cast<int>( xpos ), static_cast<int>( ypos ));
+        if (button == GLFW_MOUSE_BUTTON_RIGHT )
+        {
+            if (istargeted)
+            {
+                float3 center = intersectBlock->get_collideBox().center;
+                float3 tmp = f3abs(intersectPoint - center);
+                float3 target;
+                if (tmp.x >= tmp.y && tmp.x >= tmp.z)
+                {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.x - center.x) * make_float3(1.f, 0.f, 0.f);
+                }
+                else if (tmp.y >= tmp.x && tmp.y >= tmp.z)
+                {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.y - center.y) * make_float3(0.f, 1.f, 0.f);
+                }
+                else {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.z - center.z) * make_float3(0.f, 0.f, 1.f);
+                }
+
+
+                //这个方块会不会和人发生碰撞？
+                CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f,0.5f,0.5f));
+                if (!CollideBox::collide_check(control->box, tmpCLBOX))
+                {
+                    modelLst.push_back(new cCube(target, 0.5f));
+                    model_need_update = true;
+                }
+
+
+            }
+        }
+        else if (button == GLFW_MOUSE_BUTTON_LEFT)
+        {
+            if (istargeted)
+            {
+                for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end();)
+                {
+                    if (*it == intersectBlock)
+                    {
+                        it = modelLst.erase(it);
+                    }
+                    else {
+                        it++;
+                    }
+                }
+                model_need_update = true;
+                istargeted = false;
+            }
+        }
+        
     }
     else
     {
@@ -416,18 +671,17 @@ static void cursorPosCallback( GLFWwindow* window, double xpos, double ypos )
 {
     Params* params = static_cast<Params*>( glfwGetWindowUserPointer( window ) );
 
-    if( mouse_button == GLFW_MOUSE_BUTTON_LEFT )
+    if (mouse_button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        trackball.setViewMode( sutil::Trackball::LookAtFixed );
-        trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
-        camera_changed = true;
     }
-    else 
+    else if (mouse_button == GLFW_MOUSE_BUTTON_RIGHT)
     {
-        trackball.setViewMode( sutil::Trackball::EyeFixed );
-        trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
-        camera_changed = true;
+        
     }
+    
+    trackball.setViewMode( sutil::Trackball::EyeFixed );
+    trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
+
 }
 
 
@@ -443,7 +697,6 @@ static void windowSizeCallback( GLFWwindow* window, int32_t res_x, int32_t res_y
     Params* params = static_cast<Params*>( glfwGetWindowUserPointer( window ) );
     params->width  = res_x;
     params->height = res_y;
-    camera_changed = true;
     resize_dirty   = true;
 }
 
@@ -464,23 +717,82 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         {
             glfwSetWindowShouldClose( window, true );
         }
-        if (key == GLFW_KEY_W) key_value['w'] = true;
-        if (key == GLFW_KEY_A) key_value['a'] = true;
-        if (key == GLFW_KEY_S) key_value['s'] = true;
-        if (key == GLFW_KEY_D) key_value['d'] = true;
+        if (key == GLFW_KEY_W) key_value['w'] = true, wscnt++;
+        if (key == GLFW_KEY_A) key_value['a'] = true, adcnt++;
+        if (key == GLFW_KEY_S) key_value['s'] = true, wscnt--;
+        if (key == GLFW_KEY_D) key_value['d'] = true, adcnt--;
+        if (key == GLFW_KEY_LEFT_SHIFT)
+        {
+            camera_speed = 0.4f;
+            sprint = true;
+        }
+        if (key == GLFW_KEY_I)
+        {
+            switchcam = true;// a test button. @@todo: change controlled entity.
+        }
+        if (key == GLFW_KEY_SPACE )
+        {
+            key_value['_'] = true, sccnt++;
+            if (control->isOnGround && !control->isFlying)
+            {
+                control->isOnGround = false;
+                control->acceleration += make_float3(0.f, 10.19804 + (camera_speed - 0.23f) * 16.26f, 0.f);
+            }
+        }
+        if (key == GLFW_KEY_LEFT_CONTROL)
+        {
+            key_value['c'] = true, sccnt--;
+        }
 
+        if (key == GLFW_KEY_M)
+        {
+            if (control->isFlying)
+            {
+                control->isFlying = false;
+                control->isOnGround = false;
+            }
+            else {
+                control->isFlying = true;
+                control->isOnGround = false;
+            }
+        }
         // ball place for test
-        if (key == GLFW_KEY_E) {
+        if (key == GLFW_KEY_E) 
+        {
             modelLst.push_back(new cSphereShell({ 4.0f, 2.3f, -4.0f }, 0.96f, 1.0f));
             model_need_update = true;
+        }
+        int curWidth = 0, curHeight = 0;
+        glfwGetWindowSize(window, &curWidth, &curHeight);
+        // make the window smaller
+        if (key == GLFW_KEY_F10) {
+            glfwSetWindowSize(window, curWidth/1.2f, curHeight/1.2f);
+        }
+        // make the window GREAT again
+        if (key == GLFW_KEY_F11) {
+            glfwSetWindowSize(window, curWidth*1.2f, curHeight*1.2f);
         }
     }
     else if (action == GLFW_RELEASE)
     {
-        if (key == GLFW_KEY_W) key_value['w'] = false;
-        if (key == GLFW_KEY_A) key_value['a'] = false;
-        if (key == GLFW_KEY_S) key_value['s'] = false;
-        if (key == GLFW_KEY_D) key_value['d'] = false;
+        if (key == GLFW_KEY_W) key_value['w'] = false, wscnt--;
+        if (key == GLFW_KEY_A) key_value['a'] = false, adcnt--;
+        if (key == GLFW_KEY_S) key_value['s'] = false, wscnt++;
+        if (key == GLFW_KEY_D) key_value['d'] = false, adcnt++;
+        if (key == GLFW_KEY_LEFT_SHIFT)
+        {
+            camera_speed = 0.23f;
+            sprint = false;
+        }
+        if (key == GLFW_KEY_SPACE)
+        {
+            key_value['_'] = false, sccnt--;
+        }
+        if (key == GLFW_KEY_LEFT_CONTROL)
+        {
+            key_value['c'] = false, sccnt++;
+        }
+
     }
     else if( key == GLFW_KEY_G )
     {
@@ -491,8 +803,9 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
 
 static void scrollCallback( GLFWwindow* window, double xscroll, double yscroll )
 {
-    if(trackball.wheelEvent((int)yscroll))
-        camera_changed = true;
+    if (trackball.wheelEvent((int)yscroll))
+    {
+    }
 }
 
 
@@ -510,6 +823,35 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 768x768\n";
     std::cerr << "         --help | -h                 Print this usage message\n";
     exit( 0 );
+}
+
+void displayHUD(float width, float height) {
+    constexpr std::chrono::duration<double> display_update_min_interval_time( 0.5 );
+    static int32_t                          total_subframe_count = 0;
+    static int32_t                          last_update_frames   = 0;
+    static auto                             last_update_time     = std::chrono::steady_clock::now();
+    static char                             display_text[128];
+
+    const auto cur_time = std::chrono::steady_clock::now();
+
+    sutil::beginFrameImGui();
+
+    last_update_frames++;
+
+    typedef std::chrono::duration<double, std::milli> durationMs;
+
+    const char* sCenter = "    |\n    |\n----+----\n    |\n    |";
+    //todo imgui 字体大小/缩放
+    float font_size_x = 80;
+    float font_size_y = 80;
+
+    sutil::displayText( sCenter,
+                        width/2 - font_size_x / 2,
+                        height/2 - font_size_y / 2 );
+
+    sutil::endFrameImGui();
+
+    ++total_subframe_count;
 }
 
 void initLaunchParams( WhittedState& state )
@@ -1220,17 +1562,54 @@ bool detectModelUpdate(WhittedState& state) {
     return false;
 }
 
+bool isCollide_creature_cModel(Creature*& ent)
+{
+    CollideBox entbox = ent->get_collideBox();
+    for (auto& md : modelLst)
+    {
+        if (CollideBox::collide_check(entbox, md->get_collideBox()) && md->collidable)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+bool isCollide(Creature*& ent)
+{
+    if (isCollide_creature_cModel(ent)) return true;
+
+    return false;
+}
 //
 // Camera
 //
 
+void initCreature()
+{
+    //Create a Player
+    switchcam = true;
+    Creature* enttmp = new Creature;
+    crtList.push_back(enttmp);
+    control = player = (Creature*)crtList[0];
+    player->pos = make_float3(8.0f, 0.7f, -4.0f);
+    player->eye = make_float3(8.0f, 2.0f, -4.0f);
+    player->lookat = make_float3(4.0f, 2.3f, -4.0f);
+    player->up = make_float3(0.0f, 1.0f, 0.0f);
+    player->box = CollideBox(make_float3(8.0f, 1.55f, -4.0f), make_float3(0.3f, 0.85f, 0.3f));
+}
+void initEntitySystem()
+{
+    initCreature();
+
+
+    //@@todo: Create other entities 
+}
 void initCameraState()
 {
     camera.setEye( make_float3( 8.0f, 2.0f, -4.0f ) );
     camera.setLookat( make_float3( 4.0f, 2.3f, -4.0f ) );
     camera.setUp( make_float3( 0.0f, 1.0f, 0.0f ) );
     camera.setFovY( 60.0f );
-    camera_changed = true;
 
     trackball.setCamera( &camera );
     trackball.setMoveSpeed( 10.0f );
@@ -1238,27 +1617,138 @@ void initCameraState()
     trackball.setGimbalLock(true);
 }
 
-void handleCameraUpdate( WhittedState &state )
+void updateCreature(float dt)//the motion of entities in dt time
 {
- 
-    camera_changed = false;
+    if (!switchcam)
+    {
+        control->lookat = camera.lookat();
+    }
+    cModel* tmp = nullptr;
+    for (auto& ent : crtList)
+    {
+        ent->velocity += ent->acceleration;
+        if (!ent->isOnGround && !control->isFlying) ent->velocity = ent->velocity + make_float3(0.f, -40.f*dt, 0.f);//重力加速度
+        ent->acceleration = make_float3(0.f, 0.f, 0.f);
+        if (ent->isOnGround)
+        {
+            ent->dx(ent->velocity.x * dt);
+            if (isCollide(ent)) ent->dx(-ent->velocity.x * dt), ent->velocity.x = 0;
+            ent->dz(ent->velocity.z * dt);
+            if (isCollide(ent)) ent->dz(-ent->velocity.z * dt), ent->velocity.z = 0;
+            ent->dy(ent->velocity.y * dt);
+            if (isCollide(ent)) ent->dy(-ent->velocity.y * dt), ent->velocity.y = 0;
+            if (!get_model_at(ent->box.center + make_float3(0.f,-ent->box.size.y-0.05f,0.f),tmp) 
+                && !get_model_at(ent->box.center + make_float3(ent->box.size.x, -ent->box.size.y - 0.05f, ent->box.size.z), tmp)
+                && !get_model_at(ent->box.center + make_float3(-ent->box.size.x,-ent->box.size.y - 0.05f, ent->box.size.z), tmp)
+                && !get_model_at(ent->box.center + make_float3(ent->box.size.x, -ent->box.size.y - 0.05f, -ent->box.size.z), tmp)
+                && !get_model_at(ent->box.center + make_float3(-ent->box.size.x, -ent->box.size.y - 0.05f, -ent->box.size.z), tmp)
+                )
+                
+            {
+                ent->isOnGround = false;
+            }
+        }
+        else {
+            ent->dx(ent->velocity.x * dt);
+            if (isCollide(ent)) ent->dx(-ent->velocity.x * dt),ent->velocity.x = 0;
+            ent->dz(ent->velocity.z * dt);
+            if (isCollide(ent)) ent->dz(-ent->velocity.z * dt),ent->velocity.z = 0;
+            ent->dy(ent->velocity.y * dt);
+            if (isCollide(ent))
+            {
+                if (ent->velocity.y <= 0)
+                {
+                    ent->isOnGround = true;
+                }
+                ent->dy(-ent->velocity.y * dt);
+                ent->velocity.y = 0;
+            }
+        }
+        
+
+        ent->velocity.x *= 0.97f;
+        ent->velocity.z *= 0.97f;
+        if (control->isFlying) ent->velocity *= 0.97;
+        
+        
+        if (ent->pos.y <= 0.f)
+        {
+            float delta = 0 - ent->pos.y;
+            ent->dX(make_float3(0, delta, 0));
+            switchcam = true;
+            ent->velocity.y = 0.f;
+            ent->isOnGround = true;
+        }
+    }
+
+}
+void updateControl(float dt)//from keyboard to *contol
+{
 
     float3 direction(make_float3(0.0f));
-    float3 camera_target_vector = camera.direction();
-    float3 camera_normal_vector = cross(camera.up() , camera.direction());
-    if (key_value['w']) direction += normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
-    if (key_value['s']) direction -= normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
-    if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
-    if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+    if (!control->isFlying)
+    {
+        if (wscnt != 0 || adcnt != 0)
+        {
+            float3 camera_target_vector = camera.direction();
+            float3 camera_normal_vector = cross(camera.up(), camera.direction());
+            if (key_value['w']) direction += normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['s']) direction -= normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            direction = normalize(direction);
+        }   
+    }
+    else {
+        if (wscnt != 0 || adcnt != 0 || sccnt !=0)
+        {
+            float3 camera_target_vector = camera.direction();
+            float3 camera_normal_vector = cross(camera.up(), camera.direction());
+            if (key_value['w']) direction += normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['s']) direction -= normalize(make_float3(camera_target_vector.x, 0, camera_target_vector.z));
+            if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
+            if (key_value['_']) direction += normalize(make_float3(0, 1, 0));
+            if (key_value['c']) direction -= normalize(make_float3(0, 1, 0));
+            direction = normalize(direction);
+        }
+    }
+    
+    control->da(camera_speed * direction);
+
+    if (sprint)
+    {
+        if (camera.fovY() < 70.f) camera.setFovY(camera.fovY() + dt * 120.f);
+    }
+    else {
+        if (camera.fovY() > 60.f) camera.setFovY(camera.fovY() - dt * 120.f);
+    }
+}
+
+void handleCameraUpdate( WhittedState &state)
+{
+    //modifing camera through entity data
+    if (switchcam)
+    {
+        camera.setEye(control->eye);
+        camera.setLookat(control->lookat);
+        switchcam = false;
+    }
+    else {
+        camera.setLookat(control->lookat);
+        camera.setEye(control->eye);
+    }
+    //end modifing
 
     camera.setAspectRatio( static_cast<float>( state.params.width ) / static_cast<float>( state.params.height ) );
-    camera.setEye(camera.eye() + camera_speed * direction);
-    camera.setLookat(camera.lookat() + camera_speed * direction);
+    
+
     CameraData camData;
     camData.eye = camera.eye();
     camera.UVWFrame( camData.U, camData.V, camData.W );
-
     syncCameraDataToSbt(state, camData);
+    
+    
 }
 
 void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& params )
@@ -1277,11 +1767,11 @@ void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& param
     ) );
 }
 
-void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state )
+void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state)
 {
     // Update params on device
-    if( camera_changed || resize_dirty )
-        state.params.subframe_index = 0;
+
+    state.params.subframe_index = 0;
 
     handleCameraUpdate( state );
     handleResize( output_buffer, state.params );
@@ -1290,6 +1780,46 @@ void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &
     if(detectModelUpdate(state)) {
         output_buffer.setStream( state.stream );
     }
+}
+
+void updateInteration()
+{
+    //update MODEL
+    float3 vec = camera.lookat() - camera.eye();
+    bool isintersect = false;
+    cModel* mp = nullptr;
+    float3 startp = camera.eye();
+    if (get_model_at(startp, mp))//如果眼睛处有方块（头被覆盖住）
+    {
+        istargeted = false;//放个锤子的方块
+    }
+    else {
+        float3 nextp = nearCeil(startp, vec);
+        int findBlockcnt = 10;//找25个格子
+        while (findBlockcnt--)
+        {
+            startp = nextp;
+            nextp = nearCeil(startp, vec);
+            if (get_model_at((startp + nextp) / 2, mp))
+            {
+                istargeted = true;
+                isintersect = true;
+                break;
+            }
+        }
+        if (!isintersect)
+        {
+            istargeted = false;
+        }
+        else {
+            istargeted = true;
+            intersectBlock = mp;
+            intersectPoint = startp;
+        }
+    }
+    
+
+    //updateCreature
 }
 
 void launchSubframe( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState& state )
@@ -1434,23 +1964,19 @@ int main( int argc, char* argv[] )
         //
         // Add basic models
         //
-        modelLst.push_back(new cSphere({ 2.0f, 1.5f, -2.5f }, 1.0f));
-        
-        // for(int i=1; i<=10; i++)
-        //     if(i%2)
-        //         modelLst.push_back(new cSphereShell({ 4.0f, 0.3f + 2.f*i, -4.0f }, 0.96f, 1.0f));
-        //     else
-        //         modelLst.push_back(new cCube({ 4.0f, 0.3f + 2.f * i, -4.0f }, { 1.0f, 1.0f, 1.0f }));
+        for(int i=0; i<10; i++) {
+            for(int j=0; j<10; j++) {
+                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f));
+            }
+        }
+        modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f));
+        modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f));
+        modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f));
 
-        modelLst.push_back(new cRect(
-            make_float3( 32.0f, 0.0f, 0.0f ),
-            make_float3( 0.0f, 0.0f, 16.0f ),
-            make_float3( -16.0f, 0.01f, -8.0f )
-        ));
-        
-        modelLst.push_back(new cSphere({ 6.0f, 1.5f, -2.5f }, 1.0f));
+        initEntitySystem();
 
         initCameraState();
+
         //
         // Set up OptiX state
         //
@@ -1474,7 +2000,7 @@ int main( int argc, char* argv[] )
             glfwSetKeyCallback          ( window, keyCallback           );
             glfwSetScrollCallback       ( window, scrollCallback        );
             glfwSetWindowUserPointer    ( window, &state.params         );
-
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             {
                 // output_buffer needs to be destroyed before cleanupUI is called
                 sutil::CUDAOutputBuffer<uchar4> output_buffer(
@@ -1489,13 +2015,21 @@ int main( int argc, char* argv[] )
                 std::chrono::duration<double> state_update_time( 0.0 );
                 std::chrono::duration<double> render_time( 0.0 );
                 std::chrono::duration<double> display_time( 0.0 );
-
                 do
                 {
+                    float currentframe = glfwGetTime();
+                    deltatime = currentframe - lastframe;
+                    lastframe = currentframe;
+
                     auto t0 = std::chrono::steady_clock::now();
                     glfwPollEvents();
 
-                    updateState( output_buffer, state );
+                    updateControl(deltatime);
+                    updateCreature(deltatime);
+                    updateState( output_buffer, state);
+
+                    updateInteration(); // 更新一下给予互动的变量
+
                     auto t1 = std::chrono::steady_clock::now();
                     state_update_time += t1 - t0;
                     t0 = t1;
@@ -1509,7 +2043,8 @@ int main( int argc, char* argv[] )
                     t1 = std::chrono::steady_clock::now();
                     display_time += t1 - t0;
 
-                    sutil::displayStats( state_update_time, render_time, display_time );
+                    displayHUD(state.params.width, state.params.height);
+                    // sutil::displayStats( state_update_time, render_time, display_time );
 
                     glfwSwapBuffers( window );
 
@@ -1522,6 +2057,9 @@ int main( int argc, char* argv[] )
         }
         else
         {
+            float currentframe = glfwGetTime();
+            deltatime = currentframe - lastframe;
+            lastframe = currentframe;
             if ( output_buffer_type == sutil::CUDAOutputBufferType::GL_INTEROP )
             {
                 sutil::initGLFW(); // For GL context
@@ -1533,7 +2071,7 @@ int main( int argc, char* argv[] )
                     state.params.width,
                     state.params.height
             );
-
+            
             handleCameraUpdate( state );
             handleResize( output_buffer, state.params );
             launchSubframe( output_buffer, state );
