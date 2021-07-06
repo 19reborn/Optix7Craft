@@ -63,6 +63,7 @@ using std::vector;
 using std::string;
 using std::map;
 
+
 //------------------------------------------------------------------------------
 //
 // Globals
@@ -116,7 +117,8 @@ struct WhittedState {
     OptixModule                 camera_module             = 0;
     OptixModule                 shading_module            = 0;
     OptixModule                 sphere_module             = 0;
-    OptixModule                 cube_module             = 0;
+    OptixModule                 cube_module               = 0;
+    OptixModule                 sunsky_module             = 0;
 
     OptixProgramGroup           raygen_prog_group         = 0;
     OptixProgramGroup           radiance_miss_prog_group  = 0;
@@ -370,12 +372,23 @@ vector<cModel*> modelLst;
 //
 //------------------------------------------------------------------------------
 
+
+const float PHYSICAL_SUN_RADIUS = 0.004675f;  // from Wikipedia
+const float DEFAULT_SUN_RADIUS = 0.05f;  // Softer default to show off soft shadows
+const float DEFAULT_SUN_THETA = 1.1f;
+const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
+
 // light
 const BasicLight g_light = {
         make_float3( 60.0f, 40.0f, 0.0f ),   // pos
         make_float3( 1.0f, 1.0f, 1.0f )      // color
 };
 
+
+// to do: different pos in different time
+DirectionalLight sun;
+
+PreethamSunSky sky;
 //------------------------------------------------------------------------------
 //
 // GLFW callbacks
@@ -510,6 +523,8 @@ void initLaunchParams( WhittedState& state )
     state.params.subframe_index = 0u;
 
     state.params.light = g_light;
+    state.params.sun = sun;
+    state.params.sky = sky;
     state.params.ambient_light_color = make_float3( 0.4f, 0.4f, 0.4f );
     state.params.max_depth = max_trace;
     state.params.scene_epsilon = 1.e-4f;
@@ -732,17 +747,34 @@ void createModules( WhittedState &state )
         size_t      inputSize = 0;
         const char* input = sutil::getInputData(OPTIX_SAMPLE_NAME, OPTIX_SAMPLE_DIR, "cube.cu", inputSize);
         OPTIX_CHECK_LOG(optixModuleCreateFromPTX(
-            state.context,
-            &module_compile_options,
-            &state.pipeline_compile_options,
-            input,
-            inputSize,
-            log,
-            &sizeof_log,
-            &state.cube_module));
+                state.context,
+                &module_compile_options,
+                &state.pipeline_compile_options,
+                input,
+                inputSize,
+                log,
+                &sizeof_log,
+                &state.cube_module ) );
+    }
+
+    
+    {
+        size_t      inputSize = 0;
+        const char* input = sutil::getInputData(OPTIX_SAMPLE_NAME, OPTIX_SAMPLE_DIR, "sunsky.cu", inputSize);
+        OPTIX_CHECK_LOG(optixModuleCreateFromPTX(
+                state.context,
+                &module_compile_options,
+                &state.pipeline_compile_options,
+                input,
+                inputSize,
+                log,
+                &sizeof_log,
+                &state.sunsky_module ) );
     }
     
 }
+
+
 
 static void createCameraProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
 {
@@ -974,12 +1006,14 @@ static void createFloorProgram( WhittedState &state, std::vector<OptixProgramGro
 
 static void createMissProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
 {
+
     OptixProgramGroupOptions    miss_prog_group_options = {};
     OptixProgramGroupDesc       miss_prog_group_desc = {};
     miss_prog_group_desc.kind   = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    miss_prog_group_desc.miss.module             = state.shading_module;
-    miss_prog_group_desc.miss.entryFunctionName  = "__miss__constant_bg";
-
+    miss_prog_group_desc.miss.module             = state.sunsky_module;
+    miss_prog_group_desc.miss.entryFunctionName  = "__miss__bg";
+    //miss_prog_group_desc.miss.module = state.shading_module;
+    //miss_prog_group_desc.miss.entryFunctionName = "__miss__constant_bg";
     char    log[2048];
     size_t  sizeof_log = sizeof( log );
     OPTIX_CHECK_LOG( optixProgramGroupCreate(
@@ -1339,6 +1373,24 @@ int main( int argc, char* argv[] )
     state.params.width  = 768;
     state.params.height = 768;
     sutil::CUDAOutputBufferType output_buffer_type = sutil::CUDAOutputBufferType::GL_INTEROP;
+    sky.init();
+    sky.setSunTheta(DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
+    sky.setSunPhi(DEFAULT_SUN_PHI);
+    sky.setTurbidity(2.2f);
+
+    //Split out sun for direct sampling
+    sun.direction = sky.getSunDir();
+    Onb onb(sun.direction);
+    sun.radius = DEFAULT_SUN_RADIUS;
+    sun.v0 = onb.m_tangent;
+    sun.v1 = onb.m_binormal;
+    //float3 dir({ 1.0f,0.0f,0.0f });
+    //sun.v0 = cross(sun.direction, dir);
+    //sun.v1 = cross(sun.v0, sun.direction);
+    const float sqrt_sun_scale = PHYSICAL_SUN_RADIUS / sun.radius;
+    sun.color = sky.sunColor() * sqrt_sun_scale * sqrt_sun_scale;
+    sun.casts_shadow = 1;
+
 
     //
     // Parse command line options

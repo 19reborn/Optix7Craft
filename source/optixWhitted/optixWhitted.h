@@ -30,6 +30,10 @@
 #include <optix_types.h>
 #include <sutil/vec_math.h>
 #include <cuda/GeometryData.h>
+#include <sutil/Matrix.h>
+#include <sutil/sutilapi.h>
+#include <optix.h>
+#include "sunsky.hpp"
 
 enum RayType
 {
@@ -45,6 +49,17 @@ struct BasicLight
     float3  color;
 };
 
+struct DirectionalLight
+{
+
+  float3 direction;
+  float radius;
+  float3 v0;  // basis vectors for area sampling
+  float3 v1; 
+  float3 color;
+  int casts_shadow;
+};
+
 
 struct Params
 {
@@ -55,6 +70,8 @@ struct Params
     unsigned int height;
 
     BasicLight   light;                 // TODO: make light list
+    DirectionalLight sun;
+    PreethamSunSky sky;
     float3       ambient_light_color;
     int          max_depth;
     float        scene_epsilon;
@@ -181,10 +198,24 @@ struct RadiancePRD
     float3 result;
     float  importance;
     int    depth;
+
 };
 
+struct SunPRD {
+    int depth;
+    unsigned int seed;
+
+    // shading state
+    bool done;
+    float  importance;
+    float3 attenuation;
+    float3 radiance;
+    float3 origin;
+    float3 direction;
+};
 
 struct OcclusionPRD
 {
     float3 attenuation;
 };
+

@@ -31,9 +31,77 @@
 
 #include "optixWhitted.h"
 #include "helpers.h"
+#include "random.h"
+
+__inline__ __device__ float3 tonemap(const float3 in)
+{
+    // hard coded exposure for sun/sky
+    const float exposure = 1.0f / 30.0f;
+    float3 x = exposure * in;
+
+    // "filmic" map from a GDC talk by John Hable.  This includes 1/gamma.
+    x = fmaxf(x - make_float3(0.004f), make_float3(0.0f));
+    float3 ret = (x * (6.2f * x + make_float3(.5f))) / (x * (6.2f * x + make_float3(1.7f)) + make_float3(0.06f));
+
+    return ret;
+}
+
+#ifndef M_PI_4f
+#define M_PI_4f     0.785398163397448309616f
+#endif
 
 extern "C" {
 __constant__ Params params;
+}
+
+
+static __device__ __inline__ void cosine_sample_hemisphere(const float u1, const float u2, float3& p)
+{
+    // Uniformly sample disk.
+    const float r = sqrtf(u1);
+    const float phi = 2.0f * M_PIf * u2;
+    p.x = r * cosf(phi);
+    p.y = r * sinf(phi);
+
+    // Project up to hemisphere.
+    p.z = sqrtf(fmaxf(0.0f, 1.0f - p.x * p.x - p.y * p.y));
+}
+
+static __device__ __inline__ float2 square_to_disk(const float2& sample)
+{
+    float phi, r;
+
+    const float a = 2.0f * sample.x - 1.0f;
+    const float b = 2.0f * sample.y - 1.0f;
+
+    if (a > -b)
+    {
+        if (a > b)
+        {
+            r = a;
+            phi = (float)M_PI_4f * (b / a);
+        }
+        else
+        {
+            r = b;
+            phi = (float)M_PI_4f * (2.0f - (a / b));
+        }
+    }
+    else
+    {
+        if (a < b)
+        {
+            r = -a;
+            phi = (float)M_PI_4f * (4.0f + (b / a));
+        }
+        else
+        {
+            r = -b;
+            phi = (b) ? (float)M_PI_4f * (6.0f - (a / b)) : 0.0f;
+        }
+    }
+
+    return make_float2(r * cosf(phi), r * sinf(phi));
 }
 
 static __device__ __inline__ RadiancePRD getRadiancePRD()
@@ -55,6 +123,8 @@ static __device__ __inline__ void setRadiancePRD( const RadiancePRD &prd )
     optixSetPayload_3( float_as_int(prd.importance) );
     optixSetPayload_4( prd.depth );
 }
+
+
 
 static __device__ __inline__ OcclusionPRD getOcclusionPRD()
 {
@@ -103,6 +173,38 @@ traceRadianceRay(
     return prd.result;
 }
 
+static __forceinline__ __device__ float3 traceSun(
+    float3                 origin,
+    float3                 direction,
+    int                    depth,
+    float                  importance
+)
+{
+    // TODO: deduce stride from num ray-types passed in params
+
+
+    SunPRD sun_prd;
+    sun_prd.depth = depth;
+    sun_prd.importance = importance;
+    unsigned int u0, u1;
+    packPointer(&sun_prd, u0, u1);
+    optixTrace(
+        params.handle,
+        origin,
+        direction,
+        params.scene_epsilon,
+        1e16f,
+        0.0f,
+        OptixVisibilityMask(1),
+        OPTIX_RAY_FLAG_NONE,
+        RAY_TYPE_RADIANCE,
+        RAY_TYPE_COUNT,
+        RAY_TYPE_RADIANCE,
+        u0,
+        u1);
+
+    return sun_prd.radiance;
+}
 static
 __device__ void phongShadowed()
 {
@@ -130,7 +232,7 @@ __device__ void phongShade( float3 p_Kd,
 
     // ambient contribution
     float3 result = p_Ka * params.ambient_light_color;
-
+    /*
     // compute direct lighting
     BasicLight light = params.light;
     float Ldist = length(light.pos - hit_point);
@@ -197,10 +299,98 @@ __device__ void phongShade( float3 p_Kd,
                 new_importance);
         }
     }
-
-    // pass the color back
     prd.result = result;
     setRadiancePRD(prd);
+   */
+   
+    //sun light
+    DirectionalLight sun = params.sun;
+    SunPRD *sun_prd = getPRD<SunPRD>();
+    const float z1 = rnd( sun_prd->seed );
+    const float z2 = rnd( sun_prd->seed );
+    
+    float3 w_in;
+    cosine_sample_hemisphere( z1, z2, w_in );
+    const Onb onb( p_normal );
+    onb.inverse_transform( w_in );
+    //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
+
+    sun_prd->origin = hit_point;
+    sun_prd->direction = w_in;
+    
+    sun_prd->attenuation *= p_Kd * make_float3({ 1.0f });
+
+    // Add direct light sample weighted by shadow term and 1/probability.
+    // The pdf for a directional area light is 1/solid_angle.
+
+    const float3 light_center = hit_point + sun.direction;
+    const float r1 = rnd( sun_prd->seed );
+    const float r2 = rnd( sun_prd->seed );
+    const float2 disk_sample = square_to_disk( make_float2( r1, r2 ) );
+    const float3 jittered_pos = light_center + sun.radius*disk_sample.x*sun.v0 + sun.radius*disk_sample.y*sun.v1;
+    float3 L = normalize( jittered_pos - hit_point);
+    float Ldist = length(jittered_pos - hit_point);
+
+    const float NdotL = dot( p_normal, L);
+    float3 light_attenuation = make_float3(static_cast<float>(NdotL > 0.0f));
+    if (NdotL > 0.0f) {
+        OcclusionPRD shadow_prd;
+        shadow_prd.attenuation = make_float3(1.0f);
+
+        optixTrace(
+            params.handle,
+            hit_point,
+            L,
+            0.01f,
+            Ldist,
+            0.0f,
+            OptixVisibilityMask(1),
+            OPTIX_RAY_FLAG_NONE,
+            RAY_TYPE_OCCLUSION,
+            RAY_TYPE_COUNT,
+            RAY_TYPE_OCCLUSION,
+            float3_as_args(shadow_prd.attenuation));
+
+        light_attenuation = shadow_prd.attenuation;
+    }
+    
+    if (fmaxf(light_attenuation) > 0.0f)
+    {
+        const float solid_angle = sun.radius * sun.radius * M_PIf;
+        float3 Lc = sun.color * light_attenuation * solid_angle;
+        result += p_Kd * NdotL * Lc;
+
+        float3 H = normalize(L - ray_dir);
+        float nDh = dot(p_normal, H);
+        if (nDh > 0)
+        {
+            float power = pow(nDh, p_phong_exp);
+            result += p_Ks * power * Lc;
+        }
+    }
+    
+    if (fmaxf(p_Kr) > 0)
+    {
+        // ray tree attenuation
+        float new_importance = sun_prd->importance * luminance(p_Kr);
+        int new_depth = sun_prd->depth + 1;
+
+        // reflection ray
+        // compare new_depth to max_depth - 1 to leave room for a potential shadow ray trace
+        if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
+        {
+            float3 R = reflect(ray_dir, p_normal);
+            result += p_Kr * traceSun(hit_point, R, new_depth, new_importance);
+        }
+    }
+
+
+    sun_prd->radiance = result;
+    unsigned int u0, u1;
+    packPointer(&sun_prd, u0, u1);
+    optixSetPayload_0(u0);
+    optixSetPayload_1(u1);
+    // pass the color back
 }
 
 extern "C" __global__ void __closesthit__checker_radiance()
@@ -271,7 +461,8 @@ extern "C" __global__ void __closesthit__glass_radiance()
     const HitGroupData* sbt_data = (HitGroupData*) optixGetSbtDataPointer();
     const Glass &glass = sbt_data->shading.glass;
 
-    RadiancePRD prd_radiance = getRadiancePRD();
+    //RadiancePRD prd_radiance = getRadiancePRD();
+    SunPRD * sun_prd = getPRD<SunPRD>();
 
     float3 object_normal = make_float3(
         int_as_float( optixGetAttribute_0() ),
@@ -308,7 +499,8 @@ extern "C" __global__ void __closesthit__glass_radiance()
     float reflection = 1.0f;
     float3 result = make_float3(0.0f);
 
-    const int depth = prd_radiance.depth;
+    //const int depth = prd_radiance.depth;
+    const int depth = sun_prd->depth;
 
     float3 beer_attenuation;
     if(dot(n, ray_dir) > 0)
@@ -339,14 +531,21 @@ extern "C" __global__ void __closesthit__glass_radiance()
                 glass.fresnel_minimum,
                 glass.fresnel_maximum);
 
+            //float importance =
+            //    prd_radiance.importance
+            //   * (1.0f-reflection)
+            //   * luminance( glass.refraction_color * beer_attenuation );
             float importance =
-                prd_radiance.importance
-                * (1.0f-reflection)
-                * luminance( glass.refraction_color * beer_attenuation );
+                sun_prd->importance
+                * (1.0f - reflection)
+                * luminance(glass.refraction_color * beer_attenuation);
             float3 color = glass.cutoff_color;
             if ( importance > glass.importance_cutoff )
             {
-                color = traceRadianceRay(bhp, t, depth+1, importance);
+                //color = traceRadianceRay(bhp, t, depth+1, importance);
+                //sun_prd->depth += 1;
+                color = traceSun(bhp, t, depth + 1, importance);
+          
             }
             result += (1.0f - reflection) * glass.refraction_color * color;
         }
@@ -360,21 +559,33 @@ extern "C" __global__ void __closesthit__glass_radiance()
     {
         r = reflect(ray_dir, n);
 
+        //float importance =
+        //    prd_radiance.importance
+        //    * reflection
+        //    * luminance( glass.reflection_color * beer_attenuation );
         float importance =
-            prd_radiance.importance
+            sun_prd->importance
             * reflection
             * luminance( glass.reflection_color * beer_attenuation );
         if ( importance > glass.importance_cutoff )
         {
-            color = traceRadianceRay( fhp, r, depth+1, importance );
+           //color = traceRadianceRay( fhp, r, depth+1, importance );
+           color = traceSun(fhp, r, depth + 1, importance);
+
         }
     }
     result += reflection * glass.reflection_color * color;
 
     result = result * beer_attenuation;
 
-    prd_radiance.result = result;
-    setRadiancePRD(prd_radiance);
+    sun_prd->radiance = result;
+
+    unsigned int u0, u1;
+    packPointer(&sun_prd, u0, u1);
+    optixSetPayload_0(u0);
+    optixSetPayload_1(u1);
+    //prd_radiance.result = result;
+    //setRadiancePRD(prd_radiance);
 }
 
 extern "C" __global__ void __anyhit__glass_occlusion()
@@ -413,4 +624,5 @@ extern "C" __global__ void __miss__constant_bg()
     RadiancePRD prd = getRadiancePRD();
     prd.result = sbt_data->bg_color;
     setRadiancePRD(prd);
+
 }
