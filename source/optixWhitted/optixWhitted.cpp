@@ -88,9 +88,9 @@ bool sprint = false;
 float camera_speed = 0.5f;
 sutil::Camera     camera;
 sutil::Trackball  trackball;
-std::vector<Entity*> entList;//Entity list, the entList[0] is our player.
-Entity* player = nullptr;//refer to entList[0]. Binding process located in void initEntitySystem()
-Entity* control = nullptr;//refer to the entity you are controlling.
+std::vector<Creature*> crtList;//Entity list, the entList[0] is our player.
+Creature* player = nullptr;//refer to entList[0]. Binding process located in void initEntitySystem()
+Creature* control = nullptr;//refer to the entity you are controlling.
 bool switchcam = true; //Whenever you wanna change printer control, give this bool a TRUE value
 
 // Mouse state
@@ -1402,17 +1402,21 @@ bool detectModelUpdate(WhittedState& state) {
 //
 // Camera
 //
-void initEntitySystem()
+void initCreature()
 {
     //Create a Player
     switchcam = true;
-    Entity* enttmp = new Entity;
-    entList.push_back(enttmp);
-    control = player = entList[0];
+    Creature* enttmp = new Creature;
+    crtList.push_back(enttmp);
+    control = player = (Creature*)crtList[0];
     player->pos = make_float3(8.0f, 0.7f, -4.0f);
     player->eye = make_float3(8.0f, 2.0f, -4.0f);
     player->lookat = make_float3(4.0f, 2.3f, -4.0f);
     player->up = make_float3(0.0f, 1.0f, 0.0f);
+}
+void initEntitySystem()
+{
+    initCreature();
 
 
     //@@todo: Create other entities 
@@ -1430,21 +1434,19 @@ void initCameraState()
     trackball.setGimbalLock(true);
 }
 
-void updateEntity(float dt)//the motion of entities in dt time
+void updateCreature(float dt)//the motion of entities in dt time
 {
     if (!switchcam)
     {
         control->lookat = camera.lookat();
     }
 
-    for (auto& ent : entList)
+    for (auto& ent : crtList)
     {
         ent->velocity += ent->acceleration;
         if (!ent->isOnGround && !control->isFlying) ent->velocity = ent->velocity + make_float3(0.f, -40.f*dt, 0.f);
         ent->acceleration = make_float3(0.f, 0.f, 0.f);
-        ent->pos += ent->velocity * dt;
-        ent->eye += ent->velocity * dt;
-        ent->lookat += ent->velocity * dt;
+        ent->dx(ent->velocity * dt);
         ent->velocity.x *= 0.97f;
         ent->velocity.z *= 0.97f;
         if (control->isFlying) ent->velocity *= 0.97;
@@ -1452,11 +1454,8 @@ void updateEntity(float dt)//the motion of entities in dt time
         
         if (ent->pos.y <= 0.f)
         {
-            float3 tmp0 = ent->eye - ent->pos;
-            float3 tmp1 = ent->lookat - ent->pos;
-            ent->pos.y = 0.f;
-            ent->eye = ent->pos + tmp0;
-            ent->lookat = ent->pos + tmp1;
+            float delta = 0 - ent->pos.y;
+            ent->dx(make_float3(0, delta, 0));
             switchcam = true;
             ent->velocity.y = 0.f;
             ent->isOnGround = true;
@@ -1496,7 +1495,7 @@ void updateControl(float dt)//from keyboard to *contol
         }
     }
     
-    control->acceleration += camera_speed * direction;
+    control->da(camera_speed * direction);
 
     if (sprint)
     {
@@ -1749,7 +1748,7 @@ int main( int argc, char* argv[] )
                     glfwPollEvents();
 
                     updateControl(deltatime);
-                    updateEntity(deltatime);
+                    updateCreature(deltatime);
                     updateState( output_buffer, state);
                     auto t1 = std::chrono::steady_clock::now();
                     state_update_time += t1 - t0;
