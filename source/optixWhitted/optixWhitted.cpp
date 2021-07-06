@@ -594,25 +594,37 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
     if( action == GLFW_PRESS )
     {
         mouse_button = button;
-        if (button == GLFW_MOUSE_BUTTON_RIGHT)
+        if (button == GLFW_MOUSE_BUTTON_RIGHT )
         {
-            float3 center = intersectBlock->get_collideBox().center;
-            float3 tmp = f3abs(intersectPoint - center);
-            float3 target;
-            if (tmp.x >= tmp.y && tmp.x >= tmp.z)
+            if (istargeted)
             {
-                target = intersectBlock->get_collideBox().center + fsign(intersectPoint.x - center.x) * make_float3(1.f, 0.f, 0.f);
-            }
-            else if (tmp.y >= tmp.x && tmp.y >= tmp.z)
-            {
-                target = intersectBlock->get_collideBox().center + fsign(intersectPoint.y - center.y) * make_float3(0.f, 1.f, 0.f);
-            }
-            else {
-                target = intersectBlock->get_collideBox().center + fsign(intersectPoint.z - center.z) * make_float3(0.f, 0.f, 1.f);
-            }
+                float3 center = intersectBlock->get_collideBox().center;
+                float3 tmp = f3abs(intersectPoint - center);
+                float3 target;
+                if (tmp.x >= tmp.y && tmp.x >= tmp.z)
+                {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.x - center.x) * make_float3(1.f, 0.f, 0.f);
+                }
+                else if (tmp.y >= tmp.x && tmp.y >= tmp.z)
+                {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.y - center.y) * make_float3(0.f, 1.f, 0.f);
+                }
+                else {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.z - center.z) * make_float3(0.f, 0.f, 1.f);
+                }
 
-            modelLst.push_back(new cCube(target, 0.5f));
-            model_need_update = true;
+
+                //这个方块会不会和人发生碰撞？
+                CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f,0.5f,0.5f));
+                if (!CollideBox::collide_check(control->box, tmpCLBOX))
+                {
+                    modelLst.push_back(new cCube(target, 0.5f));
+                    model_need_update = true;
+                }
+
+
+            }
+            
         }
         
     }
@@ -1730,7 +1742,7 @@ void updateInteration()
     }
     else {
         float3 nextp = nearCeil(startp, vec);
-        int findBlockcnt = 50;//找25个格子
+        int findBlockcnt = 10;//找25个格子
         while (findBlockcnt--)
         {
             startp = nextp;
