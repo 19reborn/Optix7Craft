@@ -178,8 +178,9 @@ public:
     static uint32_t OBJ_COUNT;
     int ID;
     bool collidable;    // 是否可以碰撞
+    CollideBox collideBox;
 
-    cModel() {
+    cModel(const CollideBox& cb): collideBox(cb) {
         ID = ++OBJ_COUNT;
     }
     virtual string get_type() = 0;
@@ -188,7 +189,7 @@ public:
     virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
     virtual float3 get_center() {return {0, 0, 0};}
     virtual float get_horizontal_size() = 0;
-    virtual CollideBox get_collideBox() = 0;
+    CollideBox& get_collideBox() {return collideBox;}
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
@@ -197,7 +198,7 @@ class cSphere: public cModel {
 public:
     GeometryData::Sphere args;
 
-    cSphere(float3 c, float r) {
+    cSphere(float3 c, float r): cModel(CollideBox(c, {r, r, r})) {
         std::cerr << "[INFO] A Sphere Generated.\n";
         args.center = c;
         args.radius = r;
@@ -243,16 +244,13 @@ public:
     float get_horizontal_size() override {
         return args.radius;
     }
-    CollideBox get_collideBox() {
-        return CollideBox(args.center, {args.radius, args.radius, args.radius});
-    }
 };
 
 class cSphereShell: public cModel {
 public:
     SphereShell args;
 
-    cSphereShell(float3 c, float r1, float r2) {
+    cSphereShell(float3 c, float r1, float r2): cModel(CollideBox(c, {r2, r2, r2})) {
         std::cerr << "[INFO] A SphereShell Generated.\n";
         args.center = c;
         args.radius1 = r1;
@@ -305,23 +303,20 @@ public:
     float get_horizontal_size() override {
         return args.radius2;
     }
-    CollideBox get_collideBox() {
-        return CollideBox(args.center, {args.radius2, args.radius2, args.radius2});
-    }
 };
 
 class cCube : public cModel {
 public:
     Cube args;
 
-    cCube(float3 c, float s) {
+    cCube(float3 c, float s): cModel(CollideBox(c, {s, s, s})) {
         std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = {s, s, s};
         collidable = true;
     }
 
-    cCube(float3 c, float3 s) {
+    cCube(float3 c, float3 s): cModel(CollideBox(c, s)) {
         std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = s;
@@ -365,9 +360,6 @@ public:
     } 
     float get_horizontal_size() override {
         return std::max(args.size.x, args.size.z);
-    }
-    CollideBox get_collideBox() {
-        return CollideBox(args.center, args.size);
     }
 };
 
