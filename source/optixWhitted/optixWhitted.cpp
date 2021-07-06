@@ -1293,9 +1293,28 @@ bool detectModelUpdate(WhittedState& state) {
     return false;
 }
 
+bool isCollide_creature_cModel(Creature*& ent)
+{
+    CollideBox entbox = ent->get_collideBox();
+    for (auto& md : modelLst)
+    {
+        if (CollideBox::collide_check(entbox, md->get_collideBox()))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+bool isCollide(Creature*& ent)
+{
+    if (isCollide_creature_cModel(ent)) return true;
+
+    return false;
+}
 //
 // Camera
 //
+
 void initCreature()
 {
     //Create a Player
@@ -1307,6 +1326,7 @@ void initCreature()
     player->eye = make_float3(8.0f, 2.0f, -4.0f);
     player->lookat = make_float3(4.0f, 2.3f, -4.0f);
     player->up = make_float3(0.0f, 1.0f, 0.0f);
+    player->box = CollideBox(make_float3(8.0f, 1.55f, -4.0f), make_float3(0.3f, 0.85f, 0.3f));
 }
 void initEntitySystem()
 {
@@ -1334,13 +1354,49 @@ void updateCreature(float dt)//the motion of entities in dt time
     {
         control->lookat = camera.lookat();
     }
-
+    cModel* tmp = nullptr;
     for (auto& ent : crtList)
     {
         ent->velocity += ent->acceleration;
         if (!ent->isOnGround && !control->isFlying) ent->velocity = ent->velocity + make_float3(0.f, -40.f*dt, 0.f);
         ent->acceleration = make_float3(0.f, 0.f, 0.f);
-        ent->dx(ent->velocity * dt);
+        if (ent->isOnGround)
+        {
+            ent->dx(ent->velocity.x * dt);
+            if (isCollide(ent)) ent->dx(-ent->velocity.x * dt), ent->velocity.x = 0;
+            ent->dz(ent->velocity.z * dt);
+            if (isCollide(ent)) ent->dz(-ent->velocity.z * dt), ent->velocity.z = 0;
+            ent->dy(ent->velocity.y * dt);
+            if (isCollide(ent)) ent->dy(-ent->velocity.y * dt), ent->velocity.y = 0;
+            if (!get_model_at(ent->box.center + make_float3(0.f,-ent->box.size.y-0.05f,0.f),tmp) 
+                && !get_model_at(ent->box.center + make_float3(ent->box.size.x, -ent->box.size.y - 0.05f, ent->box.size.z), tmp)
+                && !get_model_at(ent->box.center + make_float3(-ent->box.size.x,-ent->box.size.y - 0.05f, ent->box.size.z), tmp)
+                && !get_model_at(ent->box.center + make_float3(ent->box.size.x, -ent->box.size.y - 0.05f, -ent->box.size.z), tmp)
+                && !get_model_at(ent->box.center + make_float3(-ent->box.size.x, -ent->box.size.y - 0.05f, -ent->box.size.z), tmp)
+                )
+                
+            {
+                ent->isOnGround = false;
+            }
+        }
+        else {
+            ent->dx(ent->velocity.x * dt);
+            if (isCollide(ent)) ent->dx(-ent->velocity.x * dt),ent->velocity.x = 0;
+            ent->dz(ent->velocity.z * dt);
+            if (isCollide(ent)) ent->dz(-ent->velocity.z * dt),ent->velocity.z = 0;
+            ent->dy(ent->velocity.y * dt);
+            if (isCollide(ent))
+            {
+                if (ent->velocity.y <= 0)
+                {
+                    ent->isOnGround = true;
+                }
+                ent->dy(-ent->velocity.y * dt);
+                ent->velocity.y = 0;
+            }
+        }
+        
+
         ent->velocity.x *= 0.97f;
         ent->velocity.z *= 0.97f;
         if (control->isFlying) ent->velocity *= 0.97;
@@ -1349,7 +1405,7 @@ void updateCreature(float dt)//the motion of entities in dt time
         if (ent->pos.y <= 0.f)
         {
             float delta = 0 - ent->pos.y;
-            ent->dx(make_float3(0, delta, 0));
+            ent->dX(make_float3(0, delta, 0));
             switchcam = true;
             ent->velocity.y = 0.f;
             ent->isOnGround = true;
