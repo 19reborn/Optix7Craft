@@ -2091,7 +2091,7 @@ int main( int argc, char* argv[] )
                     display_time += t1 - t0;
 
                     displayHUD(state.params.width, state.params.height);
-                    // sutil::displayStats( state_update_time, render_time, display_time );
+                    sutil::displayStats( state_update_time, render_time, display_time );
 
                     glfwSwapBuffers( window );
 
