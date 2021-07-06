@@ -88,7 +88,7 @@ bool sprint = false;
 
 
 // Camera state
-float camera_speed = 0.23f;
+float camera_speed = 1.5f;
 sutil::Camera     camera;
 sutil::Trackball  trackball;
 std::vector<Creature*> crtList;//Entity list, the entList[0] is our player.
@@ -723,7 +723,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_D) key_value['d'] = true, adcnt--;
         if (key == GLFW_KEY_LEFT_SHIFT)
         {
-            camera_speed = 0.4f;
+            camera_speed = 2.8f;
             sprint = true;
         }
         if (key == GLFW_KEY_I)
@@ -736,7 +736,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
             if (control->isOnGround && !control->isFlying)
             {
                 control->isOnGround = false;
-                control->acceleration += make_float3(0.f, 10.19804 + (camera_speed - 0.23f) * 16.26f, 0.f);
+                control->acceleration += make_float3(0.f, 10.19804f + (camera_speed - 1.5f) * 2.134f, 0.f);
             }
         }
         if (key == GLFW_KEY_LEFT_CONTROL)
@@ -781,7 +781,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_D) key_value['d'] = false, adcnt++;
         if (key == GLFW_KEY_LEFT_SHIFT)
         {
-            camera_speed = 0.23f;
+            camera_speed = 1.5f;
             sprint = false;
         }
         if (key == GLFW_KEY_SPACE)
@@ -1666,9 +1666,9 @@ void updateCreature(float dt)//the motion of entities in dt time
         }
         
 
-        ent->velocity.x *= 0.97f;
-        ent->velocity.z *= 0.97f;
-        if (control->isFlying) ent->velocity *= 0.97;
+        ent->velocity.x *= 0.7f;
+        ent->velocity.z *= 0.7f;
+        if (control->isFlying) ent->velocity *= 0.7;
         
         
         if (ent->pos.y <= 0.f)
