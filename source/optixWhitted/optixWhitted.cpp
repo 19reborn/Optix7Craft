@@ -199,7 +199,26 @@ public:
 
 uint32_t cModel::OBJ_COUNT = 0;
 
-unordered_map<float3, cModel*> modelAt;
+struct HashFunc_float3 {  
+    std::size_t operator() (const float3 &key) const {  
+        using std::size_t;  
+        using std::hash;  
+  
+        return ((hash<float>()(key.x)  
+            ^ (hash<float>()(key.y) << 1)) >> 1)  
+            ^ (hash<float>()(key.z) << 1);  
+    }  
+};  
+
+struct EqualKey_float3 {  
+    bool operator () (const float3 &lhs, const float3 &rhs) const {  
+        return lhs.x  == rhs.x  
+            && lhs.y  == rhs.y  
+            && lhs.z  == rhs.z;  
+    }  
+};  
+
+unordered_map<float3, cModel*, HashFunc_float3, EqualKey_float3> modelAt;
 
 void cModel::set_map_modelAt() {
     int xl = collideBox.center.x - collideBox.size.x;
