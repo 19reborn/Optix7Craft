@@ -314,6 +314,9 @@ public:
     CollideBox& get_collideBox() {return collideBox;}
     void set_map_modelAt();
     void clear_map_modelAt();
+    ~cModel() {
+        OBJ_COUNT--;
+    }
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
@@ -624,7 +627,24 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
 
 
             }
-            
+        }
+        else if (button == GLFW_MOUSE_BUTTON_LEFT)
+        {
+            if (istargeted)
+            {
+                for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end();)
+                {
+                    if (*it == intersectBlock)
+                    {
+                        it = modelLst.erase(it);
+                    }
+                    else {
+                        it++;
+                    }
+                }
+                model_need_update = true;
+                istargeted = false;
+            }
         }
         
     }
