@@ -56,6 +56,7 @@
 #include <iomanip>
 #include <cstring>
 
+#include "collideBox.h"
 #include "entity.h"
 #include "optixWhitted.h"
 
@@ -187,7 +188,7 @@ public:
     virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
     virtual float3 get_center() {return {0, 0, 0};}
     virtual float get_horizontal_size() = 0;
-    virtual bool check_collide_at(float3 pos) = 0;
+    virtual CollideBox get_collideBox() = 0;
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
@@ -242,12 +243,8 @@ public:
     float get_horizontal_size() override {
         return args.radius;
     }
-    bool check_collide_at(float3 pos) override {
-        // 这里理应有个eps，但是应该问题不大
-        if(calc_distance(args.center, pos) <= args.radius) {
-            return true;
-        }
-        return false;
+    CollideBox get_collideBox() {
+        return CollideBox(args.center, {args.radius, args.radius, args.radius});
     }
 };
 
@@ -308,12 +305,8 @@ public:
     float get_horizontal_size() override {
         return args.radius2;
     }
-    bool check_collide_at(float3 pos) override {
-        // 这里理应有个eps，但是应该问题不大
-        if(calc_distance(args.center, pos) <= args.radius2) {
-            return true;
-        }
-        return false;
+    CollideBox get_collideBox() {
+        return CollideBox(args.center, {args.radius2, args.radius2, args.radius2});
     }
 };
 
@@ -373,83 +366,8 @@ public:
     float get_horizontal_size() override {
         return std::max(args.size.x, args.size.z);
     }
-    bool check_collide_at(float3 pos) override {
-        // 这里相当于，将pos表示在以args.center为原点的坐标系之下
-        float dx = pos.x - args.center.x;
-        float dy = pos.y - args.center.y;
-        float dz = pos.z - args.center.z;
-        // 先判断在不在面上
-        if(fabs(dx) == args.size.x) return true;
-        if(fabs(dy) == args.size.y) return true;
-        if(fabs(dz) == args.size.z) return true;
-        // 再判断在不在里面
-        if(fabs(dx) < args.size.x && fabs(dy) < args.size.y && fabs(dz) < args.size.z)  
-            return true;
-        return false;
-    }
-};
-
-
-class cRect: public cModel {
-public:
-    Parallelogram args;
-
-    cRect(float3 v1, float3 v2, float3 anchor) {
-        std::cerr << "[INFO] A Rect Generated.\n";
-        args = { v1,v2,anchor };
-        collidable = false;
-    }
-    string get_type() {return "Rect";}
-    void set_bound(float result[6]) override {
-        // v1 and v2 are scaled by 1./length^2.  Rescale back to normal for the bounds computation.
-        const float3 tv1  = args.v1 / dot( args.v1, args.v1 );
-        const float3 tv2  = args.v2 / dot( args.v2, args.v2 );
-        const float3 p00  = args.anchor;
-        const float3 p01  = args.anchor + tv1;
-        const float3 p10  = args.anchor + tv2;
-        const float3 p11  = args.anchor + tv1 + tv2;
-
-        auto aabb = reinterpret_cast<OptixAabb*>(result);
-
-        float3 m_min = fminf( fminf( p00, p01 ), fminf( p10, p11 ));
-        float3 m_max = fmaxf( fmaxf( p00, p01 ), fmaxf( p10, p11 ));
-        *aabb = {
-                m_min.x, m_min.y, m_min.z,
-                m_max.x, m_max.y, m_max.z
-        };
-    }
-    uint32_t get_input_flag() override {
-        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
-    }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.radiance_floor_prog_group,
-                &hgr[idx] ) );
-        hgr[idx].data.geometry.parallelogram = args;
-        hgr[idx].data.shading.checker = {
-                { 0.8f, 0.3f, 0.15f },      // Kd1
-                { 0.9f, 0.85f, 0.05f },     // Kd2
-                { 0.8f, 0.3f, 0.15f },      // Ka1
-                { 0.9f, 0.85f, 0.05f },     // Ka2
-                { 0.0f, 0.0f, 0.0f },       // Ks1
-                { 0.0f, 0.0f, 0.0f },       // Ks2
-                { 0.0f, 0.0f, 0.0f },       // Kr1
-                { 0.0f, 0.0f, 0.0f },       // Kr2
-                0.0f,                       // phong_exp1
-                0.0f,                       // phong_exp2
-                { 32.0f, 16.0f }            // inv_checker_size
-        };
-        OPTIX_CHECK( optixSbtRecordPackHeader(
-                state.occlusion_floor_prog_group,
-                &hgr[idx+1] ) );
-        hgr[idx+1].data.geometry.parallelogram = args;
-
-    }
-    float get_horizontal_size() override {
-        return 0.f;
-    }
-    bool check_collide_at(float3 pos) override {
-        return false;
+    CollideBox get_collideBox() {
+        return CollideBox(args.center, args.size);
     }
 };
 
@@ -457,31 +375,7 @@ vector<cModel*> modelLst;
 
 bool get_model_at(float3 pos, cModel*& pmodel) {
     for(auto& pm: modelLst) {
-        if(pm->collidable && pm->check_collide_at(pos)) {
-            pmodel = pm;
-            return true;
-        }
-    }
-    return false;
-}
-
-// 检测两个Cube之间是否碰撞，但是我们仅检测水平方向上的体积
-// 而且我们默认它们x、z上的size是相等大小的
-bool check_collide(cModel*& pcheck, cModel*& pmodel) {
-    if(!pcheck->collidable) return false;
-    if(pcheck->get_type() != "Cube" || pmodel->get_type() != "Cube") {
-        std::cerr << "[WARNING] check_collide can only be used for cube collide checks!\n";
-        return false;
-    }
-    float3 checkCenter = pcheck->get_center();
-    float checkSize = pcheck->get_horizontal_size();
-    for(auto& pm: modelLst) {
-        float3 pmCenter = pm->get_center();
-        float pmSize = pm->get_horizontal_size();
-        if(pm->collidable
-        && checkCenter.y == pmCenter.y 
-        && fabs(checkCenter.x - pmCenter.x) < checkSize + pmSize
-        && fabs(checkCenter.z - pmCenter.z) < checkSize + pmSize) {
+        if(pm->collidable && pm->get_collideBox().check_collide_at(pos)) {
             pmodel = pm;
             return true;
         }
