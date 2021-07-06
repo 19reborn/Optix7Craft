@@ -94,6 +94,10 @@ Creature* player = nullptr;//refer to entList[0]. Binding process located in voi
 Creature* control = nullptr;//refer to the entity you are controlling.
 bool switchcam = true; //Whenever you wanna change printer control, give this bool a TRUE value
 
+
+
+
+
 // Mouse state
 int32_t           mouse_button = -1;
 
@@ -167,7 +171,122 @@ inline float pow2(float f) {
 float calc_distance(float3 a, float3 b) {
     return sqrt(pow2(a.x - b.x) + pow2(a.y - b.y) + pow2(a.z - b.z));
 }
+float cceil(float f)
+{
+    if (f == ceil(f)) return f + 1.f;
+    return ceil(f);
+}
+float ffloor(float f )
+{
+    if (f == floor(f)) return f - 1.f;
+    return floor(f);
+}
+float fsign(float f)
+{
+    if (f > 0) return 1.f;
+    return -1.f;
+}
+float3 f3ceil(float3& a)
+{
+    return make_float3(cceil(a.x), cceil(a.y), cceil(a.z));
+}
+float3 f3floor(float3& a)
+{
+    return make_float3(ffloor(a.x), ffloor(a.y), ffloor(a.z));
+}
+float3 f3abs(float3& a)
+{
+    return make_float3(fabs(a.x), fabs(a.y), fabs(a.z));
+}
+float3 nearCeil(float3& a,float3& vec)
+{
+    float3 tar;
+    if (vec.x > 0) tar.x = cceil(a.x);
+    else tar.x = ffloor(a.x);
 
+    if (vec.y > 0) tar.y = cceil(a.y);
+    else tar.y = ffloor(a.y);
+
+    if (vec.z > 0) tar.z = cceil(a.z);
+    else tar.z = ffloor(a.z);
+
+    if (vec.x == 0 && vec.y == 0)
+    {
+        return make_float3(a.x, a.y, tar.z);
+    }
+    else if (vec.x == 0 && vec.z == 0)
+    {
+        return make_float3(a.x, tar.y, a.z);
+    }
+    else if (vec.y == 0 && vec.z == 0)
+    {
+        return make_float3(tar.x, a.y, a.z);
+    }
+    else if (vec.x == 0)
+    {
+        if (fabs(vec.y * (a.z - tar.z)) > fabs(vec.z * (a.y - tar.y)))
+        {
+            return make_float3(a.x,
+                             tar.y,
+                             a.z + vec.z * fabs((tar.y - a.y) / vec.y));
+        }
+        else {
+            return make_float3(a.x,
+                a.y + vec.y * fabs((tar.z - a.z) / vec.z),
+                tar.z);
+        }
+    }
+    else if (vec.y == 0)
+    {
+        if (fabs(vec.x * (a.z - tar.z)) > fabs(vec.z * (a.x - tar.x)))
+        {
+            return make_float3(tar.x,
+                a.y,
+                a.z + vec.z * fabs((tar.x - a.x) / vec.x));
+        }
+        else {
+            return make_float3(a.x + vec.x * fabs((tar.z - a.z) / vec.z),
+                a.y,
+                tar.z);
+        }
+    }
+    else if (vec.z == 0)
+    {
+        if (fabs(vec.x * (a.y - tar.y)) > fabs(vec.y * (a.x - tar.x)))
+        {
+            return make_float3(tar.x,
+                a.y + vec.y * fabs((tar.x - a.x) / vec.x),
+                a.z);
+        }
+        else {
+            return make_float3(a.x + vec.x * fabs((tar.y - a.y) / vec.y),
+                tar.y,
+                a.z);
+        }
+    }
+    else {
+        float3 ti = f3abs((tar - a) / vec);
+        if (ti.x <= ti.y && ti.x <= ti.z)
+        {
+            return make_float3(tar.x,
+                a.y + vec.y * fabs((tar.x - a.x) / vec.x),
+                a.z + vec.z * fabs((tar.x - a.x) / vec.x));
+        }
+        else if (ti.y <= ti.x && ti.y <= ti.z)
+        {
+            return make_float3(
+                a.x + vec.x * fabs((tar.y - a.y) / vec.y),
+                tar.y,
+                a.z + vec.z * fabs((tar.y - a.y) / vec.y));
+        }
+        else {
+            return make_float3(
+                a.x + vec.x * fabs((tar.z - a.z) / vec.z),
+                a.y + vec.y * fabs((tar.z - a.z) / vec.z),
+                tar.z);
+        }
+    }
+}
 //------------------------------------------------------------------------------
 //
 //  Model Classes and Functions
@@ -193,7 +312,6 @@ public:
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
-
 class cSphere: public cModel {
 public:
     GeometryData::Sphere args;
@@ -365,6 +483,12 @@ public:
 
 vector<cModel*> modelLst;
 
+//Interation Variables
+cModel* intersectBlock;
+float3 intersectPoint = make_float3(0.f, 114514.1919810f, 0.f);
+bool istargeted = false;
+
+
 bool get_model_at(float3 pos, cModel*& pmodel) {
     for(auto& pm: modelLst) {
         if(pm->collidable && pm->get_collideBox().check_collide_at(pos)) {
@@ -414,18 +538,37 @@ static void cursorPosCallback( GLFWwindow* window, double xpos, double ypos )
 {
     Params* params = static_cast<Params*>( glfwGetWindowUserPointer( window ) );
 
-    if( mouse_button == GLFW_MOUSE_BUTTON_LEFT )
+    if (mouse_button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        trackball.setViewMode( sutil::Trackball::LookAtFixed );
-        trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
-
+        if (istargeted)
+        {
+            //还没写
+        }
     }
-    else 
+    else if (mouse_button == GLFW_MOUSE_BUTTON_RIGHT)
     {
-        trackball.setViewMode( sutil::Trackball::EyeFixed );
-        trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
+        float3 center = intersectBlock->get_collideBox().center;
+        float3 tmp = f3abs(intersectPoint - center);
+        float3 target;
+        if (tmp.x >= tmp.y && tmp.x >= tmp.z)
+        {
+            target = intersectBlock->get_collideBox().center + fsign(intersectPoint.x - center.x) * make_float3(1.f, 0.f, 0.f);
+        }
+        else if (tmp.y >= tmp.x && tmp.y >= tmp.z)
+        {
+            target = intersectBlock->get_collideBox().center + fsign(intersectPoint.y - center.y) * make_float3(0.f, 1.f, 0.f);
+        }
+        else {
+            target = intersectBlock->get_collideBox().center + fsign(intersectPoint.z - center.z) * make_float3(0.f, 0.f, 1.f);
+        }
 
+        modelLst.push_back(new cCube(target, 0.5f));
+        model_need_update = true;
     }
+    
+    trackball.setViewMode( sutil::Trackball::EyeFixed );
+    trackball.updateTracking( static_cast<int>( xpos ), static_cast<int>( ypos ), params->width, params->height );
+
 }
 
 
@@ -1290,7 +1433,7 @@ bool isCollide_creature_cModel(Creature*& ent)
     CollideBox entbox = ent->get_collideBox();
     for (auto& md : modelLst)
     {
-        if (CollideBox::collide_check(entbox, md->get_collideBox()))
+        if (CollideBox::collide_check(entbox, md->get_collideBox()) && md->collidable)
         {
             return true;
         }
@@ -1505,6 +1648,46 @@ void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &
     }
 }
 
+void updateInteration()
+{
+    //update MODEL
+    float3 vec = camera.lookat() - camera.eye();
+    bool isintersect = false;
+    cModel* mp = nullptr;
+    float3 startp = camera.eye();
+    if (get_model_at(startp, mp))//如果眼睛处有方块（头被覆盖住）
+    {
+        istargeted = false;//放个锤子的方块
+    }
+    else {
+        float3 nextp = nearCeil(startp, vec);
+        int findBlockcnt = 25;//找25个格子
+        while (findBlockcnt--)
+        {
+            startp = nextp;
+            nextp = nearCeil(startp, vec);
+            if (get_model_at((startp + nextp) / 2, mp))
+            {
+                istargeted = true;
+                isintersect = true;
+                break;
+            }
+        }
+        if (!isintersect)
+        {
+            istargeted = false;
+        }
+        else {
+            istargeted = true;
+            intersectBlock = mp;
+            intersectPoint = startp;
+        }
+    }
+    
+
+    //updateCreature
+}
+
 void launchSubframe( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState& state )
 {
 
@@ -1692,6 +1875,9 @@ int main( int argc, char* argv[] )
                     updateControl(deltatime);
                     updateCreature(deltatime);
                     updateState( output_buffer, state);
+
+                    updateInteration(); // 更新一下给予互动的变量
+
                     auto t1 = std::chrono::steady_clock::now();
                     state_update_time += t1 - t0;
                     t0 = t1;
