@@ -306,6 +306,10 @@ public:
         ID = ++OBJ_COUNT;
         set_map_modelAt();
     }
+    ~cModel() {
+        OBJ_COUNT--;
+        clear_map_modelAt();
+    }
     virtual string get_type() = 0;
     virtual void set_bound(float result[6]) = 0;
     virtual uint32_t get_input_flag() = 0;
@@ -315,9 +319,6 @@ public:
     CollideBox& get_collideBox() {return collideBox;}
     void set_map_modelAt();
     void clear_map_modelAt();
-    ~cModel() {
-        OBJ_COUNT--;
-    }
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
@@ -644,14 +645,13 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
         {
             if (istargeted)
             {
-                for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end();)
+                for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end(); ++it)
                 {
                     if (*it == intersectBlock)
                     {
+                        delete *it; // 删除这个方块
                         it = modelLst.erase(it);
-                    }
-                    else {
-                        it++;
+                        break;  // 我们顶多只有一个这个方块
                     }
                 }
                 model_need_update = true;
@@ -1018,8 +1018,8 @@ void createGeometry( WhittedState &state ) {
 
     CUDA_CHECK( cudaFree( (void*)d_aabb) );
 
-    free(aabb);
-    free(sbt_index);
+    delete aabb;
+    delete sbt_index;
 }
 
 void createModules( WhittedState &state )
@@ -1525,7 +1525,7 @@ void createSBT( WhittedState &state )
         state.sbt.hitgroupRecordCount           = count_records;
         state.sbt.hitgroupRecordStrideInBytes   = static_cast<uint32_t>( sizeof_hitgroup_record );
 
-        free(hitgroup_records);
+        delete hitgroup_records;
     }
 }
 
