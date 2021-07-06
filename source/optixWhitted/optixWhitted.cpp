@@ -64,9 +64,11 @@
 #include <string>
 #include <algorithm>
 #include <map>
+#include <unordered_map>
 using std::vector;
 using std::string;
 using std::map;
+using std::unordered_map;
 
 //--------------------------------------------------------------------------- ---
 //
@@ -182,6 +184,7 @@ public:
 
     cModel(const CollideBox& cb): collideBox(cb) {
         ID = ++OBJ_COUNT;
+        set_map_modelAt();
     }
     virtual string get_type() = 0;
     virtual void set_bound(float result[6]) = 0;
@@ -190,9 +193,51 @@ public:
     virtual float3 get_center() {return {0, 0, 0};}
     virtual float get_horizontal_size() = 0;
     CollideBox& get_collideBox() {return collideBox;}
+    void set_map_modelAt();
+    void clear_map_modelAt();
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
+
+unordered_map<float3, cModel*> modelAt;
+
+void cModel::set_map_modelAt() {
+    int xl = collideBox.center.x - collideBox.size.x;
+    int xr = collideBox.center.x + collideBox.size.x;
+    int yl = collideBox.center.y - collideBox.size.y;
+    int yr = collideBox.center.y + collideBox.size.y;
+    int zl = collideBox.center.z - collideBox.size.z;
+    int zr = collideBox.center.z + collideBox.size.z;
+    // 向下取整
+    for(int i=xl; i<xr; i++) {
+        for(int j=yl; j<yr; j++) {
+            for(int k=zl; k<zr; k++) {
+                //todo 在最终版应该要把这里无效化
+                if(modelAt.count(make_float3(i, j, k)) && modelAt[make_float3(i, j, k)] != NULL) {
+                    std::cerr << "[WARNING] (" << i << ", " << j << ", " << k << ") is not empty!\n";
+                }
+                modelAt[make_float3(i, j, k)] = this;
+            }
+        }
+    }
+}
+
+void cModel::clear_map_modelAt() {
+    int xl = collideBox.center.x - collideBox.size.x;
+    int xr = collideBox.center.x + collideBox.size.x;
+    int yl = collideBox.center.y - collideBox.size.y;
+    int yr = collideBox.center.y + collideBox.size.y;
+    int zl = collideBox.center.z - collideBox.size.z;
+    int zr = collideBox.center.z + collideBox.size.z;
+    // 向下取整
+    for(int i=xl; i<xr; i++) {
+        for(int j=yl; j<yr; j++) {
+            for(int k=zl; k<zr; k++) {
+                modelAt[make_float3(i, j, k)] = NULL;
+            }
+        }
+    }
+}
 
 class cSphere: public cModel {
 public:
@@ -366,12 +411,16 @@ public:
 vector<cModel*> modelLst;
 
 bool get_model_at(float3 pos, cModel*& pmodel) {
-    for(auto& pm: modelLst) {
-        if(pm->collidable && pm->get_collideBox().check_collide_at(pos)) {
-            pmodel = pm;
-            return true;
-        }
+    float3 key = pos;
+    key.x = floor(key.x);
+    key.y = floor(key.y);
+    key.z = floor(key.z);
+    
+    if(modelAt.count(key) && modelAt[key] != NULL) {
+        pmodel = modelAt[key];
+        return true;
     }
+
     return false;
 }
 
