@@ -594,7 +594,27 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
     if( action == GLFW_PRESS )
     {
         mouse_button = button;
-        trackball.startTracking(static_cast<int>( xpos ), static_cast<int>( ypos ));
+        if (button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            float3 center = intersectBlock->get_collideBox().center;
+            float3 tmp = f3abs(intersectPoint - center);
+            float3 target;
+            if (tmp.x >= tmp.y && tmp.x >= tmp.z)
+            {
+                target = intersectBlock->get_collideBox().center + fsign(intersectPoint.x - center.x) * make_float3(1.f, 0.f, 0.f);
+            }
+            else if (tmp.y >= tmp.x && tmp.y >= tmp.z)
+            {
+                target = intersectBlock->get_collideBox().center + fsign(intersectPoint.y - center.y) * make_float3(0.f, 1.f, 0.f);
+            }
+            else {
+                target = intersectBlock->get_collideBox().center + fsign(intersectPoint.z - center.z) * make_float3(0.f, 0.f, 1.f);
+            }
+
+            modelLst.push_back(new cCube(target, 0.5f));
+            model_need_update = true;
+        }
+        
     }
     else
     {
@@ -609,30 +629,10 @@ static void cursorPosCallback( GLFWwindow* window, double xpos, double ypos )
 
     if (mouse_button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        if (istargeted)
-        {
-            //还没写
-        }
     }
     else if (mouse_button == GLFW_MOUSE_BUTTON_RIGHT)
     {
-        float3 center = intersectBlock->get_collideBox().center;
-        float3 tmp = f3abs(intersectPoint - center);
-        float3 target;
-        if (tmp.x >= tmp.y && tmp.x >= tmp.z)
-        {
-            target = intersectBlock->get_collideBox().center + fsign(intersectPoint.x - center.x) * make_float3(1.f, 0.f, 0.f);
-        }
-        else if (tmp.y >= tmp.x && tmp.y >= tmp.z)
-        {
-            target = intersectBlock->get_collideBox().center + fsign(intersectPoint.y - center.y) * make_float3(0.f, 1.f, 0.f);
-        }
-        else {
-            target = intersectBlock->get_collideBox().center + fsign(intersectPoint.z - center.z) * make_float3(0.f, 0.f, 1.f);
-        }
-
-        modelLst.push_back(new cCube(target, 0.5f));
-        model_need_update = true;
+        
     }
     
     trackball.setViewMode( sutil::Trackball::EyeFixed );
@@ -1730,7 +1730,7 @@ void updateInteration()
     }
     else {
         float3 nextp = nearCeil(startp, vec);
-        int findBlockcnt = 25;//找25个格子
+        int findBlockcnt = 50;//找25个格子
         while (findBlockcnt--)
         {
             startp = nextp;
