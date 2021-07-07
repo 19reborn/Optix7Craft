@@ -45,6 +45,8 @@ set(sources
     GLDisplay.cpp
     GLDisplay.h
     Matrix.h
+    stb_image.h
+    stb_image_write.h
     PPMLoader.cpp
     PPMLoader.h
     Preprocessor.h

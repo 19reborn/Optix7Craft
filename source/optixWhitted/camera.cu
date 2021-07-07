@@ -104,6 +104,15 @@ extern "C" __global__ void __raygen__pinhole_camera()
     // next ray to be traced
     sun_prd.origin = make_float3(0.0f);
     sun_prd.direction = make_float3(0.0f);
+
+    //texture
+    sun_prd.origin_dx = make_float3(0.0f);
+    sun_prd.origin_dy = make_float3(0.0f);
+    const float Wlen = length(camera->W);
+    // TODO: This is not 100% correct, since U and V are not perpendicular to the ray direction
+    sun_prd.direction_dx = camera->U * (2.0f / (params.width * Wlen));
+    sun_prd.direction_dy = camera->V * (2.0f / (params.height * Wlen));
+
     for (;;) {
         unsigned int u0, u1;
         packPointer(&sun_prd, u0, u1);

@@ -29,13 +29,15 @@
 #include <vector_types.h>
 
 #include <optix_device.h>
+#include <optix.h>
+#include <optix_stubs.h>
 
-#include <DemandLoading/DeviceContext.h>
-#include <DemandLoading/Texture2D.h>
+#include <cuda_runtime.h>
 
 #include "optixWhitted.h"
 #include "helpers.h"
 #include "random.h"
+
 
 #ifndef M_PI_4f
 #define M_PI_4f     0.785398163397448309616f
@@ -262,7 +264,6 @@ __device__ void phongShade( float3 p_Kd,
     const float3 ray_dir  = optixGetWorldRayDirection();
     const float  ray_t    = optixGetRayTmax();
 
-    RadiancePRD prd = getRadiancePRD();
 
     float3 hit_point = ray_orig + ray_t * ray_dir;
 
@@ -656,61 +657,29 @@ extern "C" __global__ void __anyhit__glass_occlusion()
 
 extern "C" __global__ void __closesthit__texture_radiance()
 {
-    // The demand-loaded texture id is provided in the hit group data.
-    HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    unsigned int  textureId = hg_data->demand_texture_id;
-    const float   textureScale = hg_data->texture_scale;
-    const float   radius = hg_data->radius;
+    const HitGroupData* sbt_data = (HitGroupData*)optixGetSbtDataPointer();
+    const Phong phong = sbt_data->shading.texture;
 
-    // The texture coordinates and normal are calculated by the intersection shader are provided as attributes.
-    const float3 texcoord = make_float3(int_as_float(optixGetAttribute_0()), int_as_float(optixGetAttribute_1()),
+    float3 object_normal = make_float3(
+        int_as_float(optixGetAttribute_0()),
+        int_as_float(optixGetAttribute_1()),
         int_as_float(optixGetAttribute_2()));
+    
+    // texture coordinate
+    float2 coord = make_float2(
+        int_as_float(optixGetAttribute_3()),
+        int_as_float(optixGetAttribute_4()));
 
-    const float3 N = make_float3(int_as_float(optixGetAttribute_3()), int_as_float(optixGetAttribute_4()),
-        int_as_float(optixGetAttribute_5()));
+    if (sbt_data->normal_map) {
+        object_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y));
+    }
+    if (sbt_data->diffuse_map) {
+        phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map, coord.x, coord.y));
+    }
+    float3 world_normal = normalize(optixTransformNormalFromObjectToWorldSpace(object_normal));
+    float3 ffnormal = faceforward(world_normal, -optixGetWorldRayDirection(), world_normal);
 
-    // Compute world space texture derivatives based on normal and radius, assuming a lat/long projection
-    float3 dPds = radius * 2.0f * M_PIf * make_float3(N.y, -N.x, 0.0f);
-    dPds /= dot(dPds, dPds);
-
-    float3 dPdt = radius * M_PIf * normalize(cross(N, dPds));
-    dPdt /= dot(dPdt, dPdt);
-
-    // Compute final texture coordinates
-    float s = texcoord.x * textureScale - 0.5f * (textureScale - 1.0f);
-    float t = (1.0f - texcoord.y) * textureScale - 0.5f * (textureScale - 1.0f);
-
-    // Get the ray direction and hit distance
-    SunPRD* sun_prd = getPRD<SunPRD>();
-    const float3 rayDir = optixGetWorldRayDirection();
-    const float  thit = optixGetRayTmax();
-
-    // Compute the ray differential values at the intersection point
-    float3 rdx = sun_prd->origin_dx + thit * sun_prd->direction_dx;
-    float3 rdy = sun_prd->origin_dy + thit * sun_prd->direction_dy;
-
-    // Get texture space texture derivatives based on ray differentials
-    float2 ddx, ddy;
-    computeTextureDerivatives(ddx, ddy, dPds, dPdt, rdx, rdy, N, rayDir);
-
-    // Scale the texture derivatives based on the texture scale (how many times the
-    // texture wraps around the sphere) and the mip bias
-    float biasScale = exp2f(params.mipLevelBias);
-    ddx *= textureScale * biasScale;
-    ddy *= textureScale * biasScale;
-
-    // Sample the texture
-    const bool requestIfResident = true;
-    bool       isResident = true;
-
-    float4 color = tex2DGrad<float4>(
-        params.demandTextureContext, textureId, s, t, ddx, ddy, &isResident, requestIfResident);
-
-    sun_prd->radiance = make_float3(color);
-    unsigned int u0, u1;
-    packPointer(&sun_prd, u0, u1);
-    optixSetPayload_0(u0);
-    optixSetPayload_1(u1);
+    phongShade(phong.Kd, phong.Ka, phong.Ks, phong.Kr, phong.phong_exp, ffnormal);
 
 }
 
