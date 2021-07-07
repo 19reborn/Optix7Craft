@@ -380,6 +380,8 @@ public:
     CollideBox& get_collideBox() {return collideBox;}
     void set_map_modelAt();
     void clear_map_modelAt();
+    virtual void move_to(float3 pos) = 0;
+    void move_delta(float3 delta) { move_to(collideBox.center + delta); }
 };
 
 uint32_t cModel::OBJ_COUNT = 0;
@@ -394,7 +396,6 @@ struct HashFunc_float3 {
             ^ (hash<float>()(key.z) << 1);  
     }  
 };  
-
 struct EqualKey_float3 {  
     bool operator () (const float3 &lhs, const float3 &rhs) const {  
         return lhs.x  == rhs.x  
@@ -402,7 +403,6 @@ struct EqualKey_float3 {
             && lhs.z  == rhs.z;  
     }  
 };  
-
 unordered_map<float3, cModel*, HashFunc_float3, EqualKey_float3> modelAt;
 
 void cModel::set_map_modelAt() {
@@ -493,6 +493,12 @@ public:
     float get_horizontal_size() override {
         return args.radius;
     }
+    void move_to(float3 pos) override {
+        args.center = pos;
+        clear_map_modelAt();
+        collideBox.center = pos;
+        set_map_modelAt();
+    }
 };
 
 class cSphereShell: public cModel {
@@ -551,6 +557,12 @@ public:
     } 
     float get_horizontal_size() override {
         return args.radius2;
+    }
+    void move_to(float3 pos) override {
+        args.center = pos;
+        clear_map_modelAt();
+        collideBox.center = pos;
+        set_map_modelAt();
     }
 };
 
@@ -636,6 +648,12 @@ public:
     } 
     float get_horizontal_size() override {
         return std::max(args.size.x, args.size.z);
+    }
+    void move_to(float3 pos) override {
+        args.center = pos;
+        clear_map_modelAt();
+        collideBox.center = pos;
+        set_map_modelAt();
     }
 };
 
@@ -853,6 +871,12 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         // make the window GREAT again
         if (key == GLFW_KEY_F11) {
             glfwSetWindowSize(window, curWidth*1.2f, curHeight*1.2f);
+        }
+
+        // test move cubes
+        if (key == GLFW_KEY_E) {
+            modelLst[0]->move_delta(make_float3(0, 1, 0));
+            model_need_update = true;
         }
     }
     else if (action == GLFW_RELEASE)
