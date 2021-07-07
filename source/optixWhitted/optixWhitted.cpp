@@ -758,15 +758,18 @@ Creature* player = nullptr;//refer to crtList[0]. Binding process located in voi
 Creature* control = nullptr;//refer to the creature you are controlling.
 
 struct Particle : public Entity {
+    static uint32_t OBJ_COUNT;
     int type = ENTITY_PARTICLE;
-    float beginTime = 0.f;
+    float beginTime = 0.f;...................
     float lifeLength = 0.f;
-    cModel* md = nullptr;
+    Cube* md;
+    Particle() { OBJ_COUNT++; }
+    ~Particle() { OBJ_COUNT++; }
     void dX(const float3& vec)  override{
         pos += vec;
         if (md != nullptr)
         {
-            md->move_delta(vec);
+            md->center += vec;
             model_need_update = true;
         }
     }
@@ -784,10 +787,8 @@ void createParticle(float3& pos, float3& acceleration, float3& size, float timeP
         tmp->velocity = make_float3(0.f, 0.f, 0.f);
         tmp->beginTime = glfwGetTime();
         tmp->lifeLength = timePtc;
-        tmp->md = new cCube(pos, size);
+        tmp->md = new Cube; tmp->md->center = pos; tmp->md->size = size;
         //此处插入对cCube的调整，使得他更像粒子（比如改成灰色）
-        if (tmp->md != nullptr)  modelLst.push_back(tmp->md);//@@todo: 这一行可以不要的，但是如果不要的话就得单独做渲染，size也得和OBJ脱钩，有点麻烦，总之我先这样封装着
-        else throw sutil::Exception("Generating Particle Fault: gain nullptr when modeling.");
         ptcList.push_back(tmp);
     }
     else {
