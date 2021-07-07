@@ -767,7 +767,7 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
                     if (*it == intersectBlock)
                     {
                         delete *it; // 删除这个方块
-                        it = modelLst.erase(it);
+                        modelLst.erase(it);
                         break;  // 我们顶多只有一个这个方块
                     }
                 }

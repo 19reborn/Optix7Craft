@@ -66,12 +66,31 @@ extern "C" __global__ void __intersection__cube()
                 t = tmax;  
                 normal = normal_max;
             } 
+            float3 coord = ray_orig + t / ray_dir;
+
+            // 计算texture上的u, v
+            float3 relativeCoord = coord - cube->center;
+            float2 uv;
+            
+            if(fabs(relativeCoord.z) == cube->size.z) {
+                uv.x = (relativeCoord.x + cube->size.x) / (2*cube->size.x);
+                uv.y = (relativeCoord.y + cube->size.y) / (2*cube->size.y);
+            } else if(fabs(relativeCoord.x) == cube->size.x) {
+                uv.x = (relativeCoord.y + cube->size.y) / (2*cube->size.y);
+                uv.y = (relativeCoord.z + cube->size.z) / (2*cube->size.z);
+            } else if(fabs(relativeCoord.y) == cube->size.y) {
+                // 可能要换下顺序?
+                uv.x = (relativeCoord.z + cube->size.z) / (2*cube->size.z);
+                uv.y = (relativeCoord.x + cube->size.x) / (2*cube->size.x);
+            }
+
 
             if( t>=ray_tmin && t<=ray_tmax){
                 optixReportIntersection(
                     t,
                     0,
-                    float3_as_ints(normal)
+                    float3_as_ints(normal),
+                    float3_as_ints(coord)
                     );
             }
         }
