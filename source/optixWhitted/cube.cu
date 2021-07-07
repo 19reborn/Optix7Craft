@@ -36,7 +36,7 @@ extern "C" __global__ void __intersection__cube()
     float3 normaly = { 0.0f,1.0f,0.0f };
     float3 normalz = { 0.0f,0.0f,1.0f };
     normal_min = -normalx*(1- 2* sign[0]);
-    normal_max = normalx * (1 - 2 * sign[0]);
+    normal_max = -normalx * (1 - 2 * sign[0]);
     if ((tmin <= tymax) && (tymin <= tmax)){
         if (tymin > tmin) {
             tmin = tymin;
@@ -44,7 +44,7 @@ extern "C" __global__ void __intersection__cube()
         }
         if (tymax < tmax) {
             tmax = tymax;
-            normal_max = normaly* (1 - 2 * sign[1]);
+            normal_max =  -normaly* (1 - 2 * sign[1]);
         }
 
         tzmin = (bounds[sign[2]].z - ray_orig.z) * ray_dir.z; 
@@ -58,13 +58,13 @@ extern "C" __global__ void __intersection__cube()
             }
             if (tzmax < tmax) {
                 tmax = tzmax;
-                normal_max = normalz *(1 - 2 * sign[2]);
+                normal_max = -normalz *(1 - 2 * sign[2]);
             }
             t = tmin; 
             normal = normal_min;
             if (t < 0) { 
                 t = tmax;  
-                normal = normal_max;
+                normal = -normal_max;
             } 
             float3 coord = ray_orig + t / ray_dir;
 
@@ -89,7 +89,7 @@ extern "C" __global__ void __intersection__cube()
                 optixReportIntersection(
                     t,
                     0,
-                    float3_as_ints(normal),
+                    float3_as_args(normal),
                     float_as_int(uv.x),
                     float_as_int(uv.y)
                     );

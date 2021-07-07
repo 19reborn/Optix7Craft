@@ -72,6 +72,7 @@ struct Params
     uchar4*      frame_buffer;
     unsigned int width;
     unsigned int height;
+    unsigned int samples_per_launch;
 
     BasicLight   light;                 // TODO: make light list
     DirectionalLight sun;
