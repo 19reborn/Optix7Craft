@@ -177,6 +177,7 @@ bool d_miss_record_allocated = false;
 CUdeviceptr d_hitgroup_records;
 bool d_hitgroup_records_allocated = false;
 bool first_launch = true;
+bool d_gas_output_buffer_allocated = false;
 
 //------------------------------------------------------------------------------
 //
@@ -1285,13 +1286,12 @@ void displayHUD(float width, float height) {
 
 void initLaunchParams( WhittedState& state )
 {
-    if(!first_launch) {
-        CUDA_CHECK(cudaFree((void*)state.params.accum_buffer));
-    }
-    CUDA_CHECK( cudaMalloc(
+    if(first_launch) {
+        CUDA_CHECK( cudaMalloc(
             reinterpret_cast<void**>( &state.params.accum_buffer ),
             state.params.width*state.params.height*sizeof(float4)
-    ) );
+        ) );
+    }
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
@@ -1370,7 +1370,12 @@ static void buildGas(
 
     if( compacted_gas_size < gas_buffer_sizes.outputSizeInBytes )
     {
+        if(d_gas_output_buffer_allocated) {
+            CUDA_CHECK(cudaFree( (void*)d_gas_output_buffer ));
+            d_gas_output_buffer_allocated = false;
+        }
         CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_gas_output_buffer ), compacted_gas_size ) );
+        d_gas_output_buffer_allocated = true;
 
         // use handle as input and output
         OPTIX_CHECK( optixAccelCompact( state.context, 0, gas_handle, d_gas_output_buffer, compacted_gas_size, &gas_handle ) );
