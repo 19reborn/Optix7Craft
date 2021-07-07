@@ -355,14 +355,21 @@ float3 nearCeil(float3& a,float3& vec)
 //  Model Classes and Functions
 //
 //------------------------------------------------------------------------------
+enum ModelTexture {
+    NONE = -1,
+
+};
+
 class cModel {
 public:
     static uint32_t OBJ_COUNT;
     int ID;
     bool collidable;    // 是否可以碰撞
     CollideBox collideBox;
+    ModelTexture texture_id;
 
-    cModel(const CollideBox& cb): collideBox(cb) {
+    cModel(const CollideBox& cb, ModelTexture tex_id): 
+        collideBox(cb), texture_id(tex_id) {
         ID = ++OBJ_COUNT;
         set_map_modelAt();
     }
@@ -373,8 +380,7 @@ public:
     virtual string get_type() = 0;
     virtual void set_bound(float result[6]) = 0;
     virtual uint32_t get_input_flag() = 0;
-    virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, 
-                        int idx, int texture_id) = 0;
+    virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
     virtual float3 get_center() {return {0, 0, 0};}
     virtual float get_horizontal_size() = 0;
     CollideBox& get_collideBox() {return collideBox;}
@@ -447,7 +453,8 @@ class cSphere: public cModel {
 public:
     GeometryData::Sphere args;
 
-    cSphere(float3 c, float r): cModel(CollideBox(c, {r, r, r})) {
+    cSphere(float3 c, float r, ModelTexture tex_id=NONE): 
+        cModel(CollideBox(c, {r, r, r}), tex_id) {
         std::cerr << "[INFO] A Sphere Generated.\n";
         args.center = c;
         args.radius = r;
@@ -469,7 +476,7 @@ public:
     uint32_t get_input_flag() override {
         return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
     }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx, int texture_id) override {
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
         OPTIX_CHECK( optixSbtRecordPackHeader(
                 state.radiance_metal_sphere_prog_group,
                 &hgr[idx] ) );
@@ -505,7 +512,8 @@ class cSphereShell: public cModel {
 public:
     SphereShell args;
 
-    cSphereShell(float3 c, float r1, float r2): cModel(CollideBox(c, {r2, r2, r2})) {
+    cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
+        cModel(CollideBox(c, {r2, r2, r2}), tex_id) {
         std::cerr << "[INFO] A SphereShell Generated.\n";
         args.center = c;
         args.radius1 = r1;
@@ -527,7 +535,7 @@ public:
     uint32_t get_input_flag() override {
         return OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL;
     }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx, int texture_id) override {
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
         OPTIX_CHECK( optixSbtRecordPackHeader(
                 state.radiance_glass_sphere_prog_group,
                 &hgr[idx] ) );
@@ -570,14 +578,16 @@ class cCube : public cModel {
 public:
     Cube args;
 
-    cCube(float3 c, float s): cModel(CollideBox(c, {s, s, s})) {
+    cCube(float3 c, float s, ModelTexture tex_id=NONE): 
+        cModel(CollideBox(c, {s, s, s}), tex_id) {
         std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = {s, s, s};
         collidable = true;
     }
 
-    cCube(float3 c, float3 s): cModel(CollideBox(c, s)) {
+    cCube(float3 c, float3 s, ModelTexture tex_id): 
+        cModel(CollideBox(c, s), tex_id) {
         std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = s;
@@ -599,15 +609,16 @@ public:
     uint32_t get_input_flag() override {
         return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
     }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx, int texture_id) override {
-        if (texture_id == 0) {
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        if (texture_id == NONE) {
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_metal_cube_prog_group,
                 &hgr[idx]));
             hgr[idx].data.geometry.cube = args;
             hgr[idx].data.shading.metal = {
                     { 0.2f, 0.5f, 0.5f },   // Ka
-                    { 0.2f, 0.7f, 0.8f },   // Kd
+                    // { 0.2f, 0.7f, 0.8f },   // Kd
+                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                     { 0.9f, 0.9f, 0.9f },   // Ks
                     { 0.5f, 0.5f, 0.5f },   // Kr
                     64,                     // phong_exp
@@ -617,7 +628,7 @@ public:
                 &hgr[idx + 1]));
             hgr[idx + 1].data.geometry.cube = args;
         }
-        
+        // 这里应该改成一堆if
         else {
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_texture_cube_prog_group,
@@ -1690,7 +1701,7 @@ void createSBT( WhittedState &state)
 
         // Note: Fill SBT record array the same order like AS is built.
         for(int i=0; i<count_records; i+=2) {
-            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i, (i)%2);
+            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i);
         }
 
         size_t      sizeof_hitgroup_record = sizeof( HitGroupRecord );
