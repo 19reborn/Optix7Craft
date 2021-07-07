@@ -32,6 +32,7 @@ extern "C" __global__ void __intersection__cube()
     tymin = (bounds[sign[1]].y - ray_orig.y) * ray_dir.y; 
     tymax = (bounds[1-sign[1]].y - ray_orig.y) * ray_dir.y; 
     float3 normal_min,normal_max, normal; 
+    float3 coord;
     float3 normalx = { 1.0f,0.0f,0.0f };
     float3 normaly = { 0.0f,1.0f,0.0f };
     float3 normalz = { 0.0f,0.0f,1.0f };
@@ -90,7 +91,7 @@ extern "C" __global__ void __intersection__cube()
                     t,
                     0,
                     float3_as_ints(normal),
-                    float3_as_ints(coord)
+                    float2_as_ints(uv)
                     );
             }
         }

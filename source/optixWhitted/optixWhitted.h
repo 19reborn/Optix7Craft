@@ -28,8 +28,6 @@
 
 #include <cuda/GeometryData.h>
 
-#include <DemandLoading/DeviceContext.h>
-
 #include <vector_types.h>
 
 #include <sutil/vec_math.h>
@@ -85,11 +83,6 @@ struct Params
 
     OptixTraversableHandle handle;
 
-     //Texture data
-    float                        mipLevelBias;
-    demandLoading::DeviceContext demandTextureContext;
-    cudaMipmappedArray_t         nonDemandTextureArray;
-    cudaTextureObject_t          nonDemandTexture;
 };
 
 
@@ -158,6 +151,14 @@ struct Phong
     float  phong_exp;
 };
 
+struct Texture
+{
+    float3 Ka;
+    float3 Kd;
+    float3 Ks;
+    float3 Kr;
+    float  phong_exp;
+};
 
 struct Glass
 {
@@ -204,12 +205,13 @@ struct HitGroupData
         Phong           metal;
         Glass           glass;
         CheckerPhong    checker;
+        Texture         texture;
     } shading;    
-  
-    float        radius;
-    unsigned int demand_texture_id;
-    float        texture_scale;
-    float        texture_lod;
+
+    bool  has_diffuse;
+    cudaTextureObject_t diffuse_map;
+    bool  has_normal;
+    cudaTextureObject_t  normal_map;
 };
 
 
@@ -248,3 +250,12 @@ struct OcclusionPRD
     float3 attenuation;
 };
 
+struct texture_map {
+    ~texture_map()
+    {
+        if (pixel) delete[] pixel;
+    }
+
+    uint32_t* pixel{ nullptr };
+    int2     resolution{ -1 };
+};

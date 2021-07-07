@@ -30,12 +30,6 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
-#include <DemandLoading/CheckerBoardImage.h>
-#include <DemandLoading/DemandLoader.h>
-#include <DemandLoading/DemandTexture.h>
-#include <DemandLoading/TextureDescriptor.h>
-#include <DemandLoading/ImageReader.h>
-
 #include <optix.h>
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
@@ -51,6 +45,7 @@
 #include <sutil/Matrix.h>
 #include <sutil/sutil.h>
 #include <sutil/vec_math.h>
+#include <sutil/stb_image.h>
 
 #include <GLFW/glfw3.h>
 // ImGui
@@ -76,7 +71,6 @@ using std::string;
 using std::map;
 using std::unordered_map;
 
-using namespace demandLoading;
 
 //--------------------------------------------------------------------------- ---
 //
@@ -106,11 +100,8 @@ bool switchcam = true; //Whenever you wanna change printer control, give this bo
 
 
 // Texture 
-int g_textureWidth = 2048;
-int g_textureHeight = 2048;
-float texture_scale = 4.0f;
-float texture_lod = 0.0f;
-const DemandTexture* texture;
+std::vector<texture_map*>      texture_list;
+std::map<std::string, int> textures;
 
 
 // Mouse state
@@ -194,33 +185,39 @@ bool first_launch = true;
 //
 //------------------------------------------------------------------------------
 
-void getDevices(std::vector<unsigned int>& devices)
-{
-    int32_t deviceCount = 0;
-    CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
-    devices.resize(deviceCount);
-    std::cout << "Total GPUs visible: " << devices.size() << std::endl;
-    for (int32_t deviceIndex = 0; deviceIndex < deviceCount; ++deviceIndex)
-    {
-        cudaDeviceProp prop;
-        CUDA_CHECK(cudaGetDeviceProperties(&prop, deviceIndex));
-        devices[deviceIndex] = deviceIndex;
-        std::cout << "\t[" << devices[deviceIndex] << "]: " << prop.name << std::endl;
+
+
+void load_texture(const std::string& file_name, const std::string & name) {
+    int2 res;
+    int   comp;
+    unsigned char* image = stbi_load(file_name.c_str(),
+        &res.x, &res.y, &comp, STBI_rgb_alpha);
+    if (image) {
+        texture_map* texture = new texture_map;
+        texture->resolution = res;
+        texture->pixel = (uint32_t*)image;
+
+        /* iw - actually, it seems that stbi loads the pictures
+           mirrored along the y axis - mirror them here */
+        for (int y = 0; y < res.y / 2; y++) {
+            uint32_t* line_y = texture->pixel + y * res.x;
+            uint32_t* mirrored_y = texture->pixel + (res.y - 1 - y) * res.x;
+            int mirror_y = res.y - 1 - y;
+            for (int x = 0; x < res.x; x++) {
+                std::swap(line_y[x], mirrored_y[x]);
+            }
+        }
+
+        texture_list.push_back(texture);
+        textures[name] = texture_list.size() - 1;
+
+    }
+    else {
+        std::cout
+            << "Could not load texture from " << file_name << "!"
+            << std::endl;
     }
 }
-
-TextureDescriptor makeTextureDescription()
-{
-    TextureDescriptor texDesc{};
-    texDesc.addressMode[0] = CU_TR_ADDRESS_MODE_WRAP;
-    texDesc.addressMode[1] = CU_TR_ADDRESS_MODE_WRAP;
-    texDesc.filterMode = CU_TR_FILTER_MODE_LINEAR;
-    texDesc.mipmapFilterMode = CU_TR_FILTER_MODE_LINEAR;
-    texDesc.maxAnisotropy = 16;
-
-    return texDesc;
-}
-
 
 //------------------------------------------------------------------------------
 //
@@ -357,8 +354,9 @@ float3 nearCeil(float3& a,float3& vec)
 //------------------------------------------------------------------------------
 enum ModelTexture {
     NONE = -1,
-
+    WOOD,
 };
+
 
 class cModel {
 public:
@@ -628,31 +626,31 @@ public:
                 &hgr[idx + 1]));
             hgr[idx + 1].data.geometry.cube = args;
         }
-        // 这里应该改成一堆if
-        else {
+        else if (texture_id = WOOD) {
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_texture_cube_prog_group,
                 &hgr[idx]));
             hgr[idx].data.geometry.cube = args;
-            /*
             hgr[idx].data.shading.metal = {
                     { 0.2f, 0.5f, 0.5f },   // Ka
-                    { 0.2f, 0.7f, 0.8f },   // Kd
+                    // { 0.2f, 0.7f, 0.8f },   // Kd
+                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                     { 0.9f, 0.9f, 0.9f },   // Ks
                     { 0.5f, 0.5f, 0.5f },   // Kr
                     64,                     // phong_exp
             };
-            */
-            hgr[idx].data.radius = 1.5f;
-            hgr[idx].data.demand_texture_id = texture->getId();
-            hgr[idx].data.texture_scale = texture_scale;
-            hgr[idx].data.texture_lod = texture_lod;
+            hgr[idx].data.has_diffuse = TRUE;
+            hgr[idx].data.diffuse_map = textures["wood_diffuse"];
+            //hgr[idx].data.has_normal = TRUE;
+            //hgr[idx].data.normal_map = textures["wood_normal"];
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.occlusion_texture_cube_prog_group,
                 &hgr[idx + 1]));
             hgr[idx + 1].data.geometry.cube = args;
-        }
         
+        }
+        // 这里应该改成一堆if
+     
     }
     float3 get_center() override {
         return args.center;
@@ -1575,7 +1573,7 @@ void createPipeline( WhittedState &state )
             false,                                                  // usesMotionBlur
             OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS,          // traversableGraphFlags
             5,    /* RadiancePRD uses 5 payloads */                 // numPayloadValues
-            5,    /* Parallelogram intersection uses 5 attrs */     // numAttributeValues
+            6,    /* Parallelogram intersection uses 5 attrs */     // numAttributeValues
             OPTIX_EXCEPTION_FLAG_NONE,                              // exceptionFlags
             "params"                                                // pipelineLaunchParamsVariableName
     };
@@ -2102,10 +2100,6 @@ void cleanupState( WhittedState& state )
     CUDA_CHECK( cudaFree( reinterpret_cast<void*>( state.params.accum_buffer    ) ) );
     CUDA_CHECK( cudaFree( reinterpret_cast<void*>( state.d_params               ) ) );
 
-    //if (state.params.nonDemandTexture != 0)
-    //    CUDA_CHECK(cudaDestroyTextureObject(state.params.nonDemandTexture));
-    //if (state.params.nonDemandTextureArray != 0)
-    //   CUDA_CHECK(cudaFreeMipmappedArray(state.params.nonDemandTextureArray));
 }
 
 int main( int argc, char* argv[] )
@@ -2135,7 +2129,8 @@ int main( int argc, char* argv[] )
 
     // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
     // Licensed under the Creative Commons CC0 License.
-    std::string textureFile = "Textures/Wood049_1K_Color.jpg";  // use --texture "" for procedural texture
+    load_texture("Textures/Wood049_1K_Color.jpg","wood_diffuse");
+    load_texture("Textures/Wood049_1K_Normal.jpg", "wood_normal");
 
     //
     // Parse command line options
@@ -2184,9 +2179,9 @@ int main( int argc, char* argv[] )
                 modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f));
             }
         }
-        modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f));
-        modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f));
-        modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f));
+        modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
+        modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
+        modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));
 
         initEntitySystem();
 
@@ -2196,27 +2191,13 @@ int main( int argc, char* argv[] )
         // Set up OptiX state
         //
         createContext  ( state );
-       
-        std::vector<unsigned int> availableDevices;
-        getDevices(availableDevices);
-        demandLoading::Options options{};
-        options.maxThreads = 0 ;  // maximum threads to use when processing page requests
-
-        std::unique_ptr<ImageReader> imageReader;
-        std::shared_ptr<DemandLoader> demandLoader(createDemandLoader(availableDevices, options), destroyDemandLoader);
-
-        const int  squaresPerSide = 32;
-        const bool useMipmaps = true;
-        imageReader = std::unique_ptr<ImageReader>(
-            new CheckerBoardImage(g_textureWidth, g_textureHeight, squaresPerSide, useMipmaps));
-        TextureDescriptor    texDesc = makeTextureDescription();
-        texture = &(demandLoader->createTexture(std::move(imageReader), texDesc));
-        
         createGeometry  ( state );
         createPipeline ( state );
         createSBT      ( state);
 
+
         initLaunchParams( state );
+
 
         //
         // Render loop
