@@ -187,10 +187,12 @@ bool first_launch = true;
 
 
 void load_texture(std::string file_name, const std::string & name) {
-    //std::string textureFilename(sutil::sampleDataFilePath(file_name.c_str()));
+    std::string relaPath = "Textures/" + file_name;
+    std::string textureFilename(sutil::sampleDataFilePath(relaPath.c_str()));
+    // std::cerr << "[INFO] path: " << textureFilename << std::endl;
     int2 res;
     int   comp;
-    unsigned char* image = stbi_load(file_name.c_str(),
+    unsigned char* image = stbi_load(textureFilename.c_str(),
         &res.x, &res.y, &comp, STBI_rgb_alpha);
     if (image) {
         texture_map* texture = new texture_map;
@@ -637,7 +639,7 @@ public:
             };
             hgr[idx].data.has_diffuse = true;
             hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
-            hgr[idx].data.has_normal = false;
+            hgr[idx].data.has_normal = true;
             hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.occlusion_texture_cube_prog_group,
@@ -2465,8 +2467,8 @@ int main( int argc, char* argv[] )
 
     // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
     // Licensed under the Creative Commons CC0 License.
-    load_texture("C:/Users/wr786/Documents/GitHub/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Color.jpg","wood_diffuse");
-    load_texture("C:/Users/wr786/Documents/GitHub/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Normal.jpg", "wood_normal");
+    load_texture("Wood049_1K_Color.jpg","wood_diffuse");
+    load_texture("Wood049_1K_Normal.jpg", "wood_normal");
 
     //
     // Parse command line options
