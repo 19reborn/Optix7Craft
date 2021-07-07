@@ -657,14 +657,8 @@ extern "C" __global__ void __anyhit__glass_occlusion()
 
 extern "C" __global__ void __closesthit__texture_radiance()
 {
-    // The demand-loaded texture id is provided in the hit group data.
-    HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    unsigned int  textureId = hg_data->demand_texture_id;
-    const float   textureScale = hg_data->texture_scale;
-    const float   radius = hg_data->radius;
-
     const HitGroupData* sbt_data = (HitGroupData*)optixGetSbtDataPointer();
-    const Phong& phong = sbt_data->shading.texture;
+    const Phong phong = sbt_data->shading.texture;
 
     float3 object_normal = make_float3(
         int_as_float(optixGetAttribute_0()),
@@ -680,7 +674,7 @@ extern "C" __global__ void __closesthit__texture_radiance()
         object_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y));
     }
     if (sbt_data->diffuse_map) {
-        float3 kd = make_float3(tex2D<float4>(sbt_data->diffuse_map, coord.x, coord.y));
+        phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map, coord.x, coord.y));
     }
     float3 world_normal = normalize(optixTransformNormalFromObjectToWorldSpace(object_normal));
     float3 ffnormal = faceforward(world_normal, -optixGetWorldRayDirection(), world_normal);
