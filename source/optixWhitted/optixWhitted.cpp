@@ -2012,7 +2012,7 @@ int main( int argc, char* argv[] )
         // Add basic models
         //
         for(int i=0; i<10; i++) {
-            for(int j=0; j<10; j++) {
+            for(int j=0; j<3; j++) {
                 modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f));
             }
         }

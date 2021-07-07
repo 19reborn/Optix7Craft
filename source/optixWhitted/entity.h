@@ -15,38 +15,13 @@ public:
     bool isOnGround = true;
     bool isFlying = false;
     CollideBox box = CollideBox(make_float3(0,0,0), make_float3(0, 0, 0));
-    virtual void dx(const float delta)
-    {
-        pos.x += delta;
-        box.center.x += delta;
-    }
-    virtual void dy(const float delta)
-    {
-        pos.y += delta;
-        box.center.y += delta;
-    }
-    virtual void dz(const float delta)
-    {
-        pos.z += delta;
-        box.center.z += delta;
-    }
-    virtual void dX(const float3& vec)
-    {
-        pos += vec;
-        box.center += vec;
-    }
-    virtual void dv(const float3& vec)
-    {
-        velocity += vec;
-    }
-    virtual void da(const float3& vec)
-    {
-        acceleration += vec;
-    }
-    virtual CollideBox& get_collideBox()
-    {
-        return box;
-    }
+    virtual void dx(const float delta)  {   pos.x += delta; box.center.x += delta;  }
+    virtual void dy(const float delta)  {   pos.y += delta; box.center.y += delta;  }
+    virtual void dz(const float delta)  {   pos.z += delta; box.center.z += delta;  }
+    virtual void dX(const float3& vec)  {   pos += vec; box.center += vec;  }
+    virtual void dv(const float3& vec)  {   velocity += vec;    }
+    virtual void da(const float3& vec)  {   acceleration += vec;    }
+    virtual CollideBox& get_collideBox(){   return box; }
     virtual bool collide(const CollideBox& cbox)
     {
         if (CollideBox::collide_check(box, cbox))
@@ -101,5 +76,10 @@ struct Creature : public Entity {
         box.center += vec;
     }
     //@@todo: link with collidebox
+};
+
+struct Particle {
+    float beginTime = 0.f;
+    float lifeLength = 0.f;
 };
 #endif
