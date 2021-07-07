@@ -31,19 +31,20 @@ extern "C" __global__ void __intersection__cube()
     tmax = (bounds[1-sign[0]].x - ray_orig.x) * ray_dir.x; 
     tymin = (bounds[sign[1]].y - ray_orig.y) * ray_dir.y; 
     tymax = (bounds[1-sign[1]].y - ray_orig.y) * ray_dir.y; 
-    float3 normal; 
+    float3 normal_min,normal_max, normal; 
     float3 normalx = { 1.0f,0.0f,0.0f };
     float3 normaly = { 0.0f,1.0f,0.0f };
     float3 normalz = { 0.0f,0.0f,1.0f };
-    normal = normalx;
+    normal_min = -normalx*(1- 2* sign[0]);
+    normal_max = normalx * (1 - 2 * sign[0]);
     if ((tmin <= tymax) && (tymin <= tmax)){
         if (tymin > tmin) {
             tmin = tymin;
-            normal = normaly;
+            normal_min = -normaly* (1 - 2 * sign[1]);
         }
         if (tymax < tmax) {
             tmax = tymax;
-            normal = normaly;
+            normal_max = normaly* (1 - 2 * sign[1]);
         }
 
         tzmin = (bounds[sign[2]].z - ray_orig.z) * ray_dir.z; 
@@ -53,15 +54,17 @@ extern "C" __global__ void __intersection__cube()
  
             if (tzmin > tmin) {
                 tmin = tzmin;
-                normal = normalz;
+                normal_min = -normalz* (1 - 2 * sign[2]);
             }
             if (tzmax < tmax) {
                 tmax = tzmax;
-                normal = normalz;
+                normal_max = normalz *(1 - 2 * sign[2]);
             }
             t = tmin; 
+            normal = normal_min;
             if (t < 0) { 
                 t = tmax;  
+                normal = normal_max;
             } 
 
             if( t>=ray_tmin && t<=ray_tmax){
@@ -69,7 +72,6 @@ extern "C" __global__ void __intersection__cube()
                     t,
                     0,
                     float3_as_ints(normal)
-                    
                     );
             }
         }

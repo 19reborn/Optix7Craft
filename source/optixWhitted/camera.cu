@@ -129,7 +129,7 @@ extern "C" __global__ void __raygen__pinhole_camera()
         if (sun_prd.done) {
             break;
         }
-        else if (sun_prd.depth >= 3) {
+        else if (sun_prd.depth >= 2) {
             result += sun_prd.attenuation * make_float3(0.2f,0.2f,0.2f);
             break;
         }

@@ -110,7 +110,7 @@ int g_textureWidth = 2048;
 int g_textureHeight = 2048;
 float texture_scale = 4.0f;
 float texture_lod = 0.0f;
-DemandTexture* texture;
+const DemandTexture* texture;
 
 
 // Mouse state
@@ -1666,7 +1666,7 @@ void createSBT( WhittedState &state)
 
         // Note: Fill SBT record array the same order like AS is built.
         for(int i=0; i<count_records; i+=2) {
-            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i, 0);
+            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i, (i)%2);
         }
 
         size_t      sizeof_hitgroup_record = sizeof( HitGroupRecord );
@@ -2175,7 +2175,7 @@ int main( int argc, char* argv[] )
         imageReader = std::unique_ptr<ImageReader>(
             new CheckerBoardImage(g_textureWidth, g_textureHeight, squaresPerSide, useMipmaps));
         TextureDescriptor    texDesc = makeTextureDescription();
-        *texture = demandLoader->createTexture(std::move(imageReader), texDesc);
+        texture = &(demandLoader->createTexture(std::move(imageReader), texDesc));
         
         createGeometry  ( state );
         createPipeline ( state );
