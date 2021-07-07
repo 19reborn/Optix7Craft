@@ -63,7 +63,7 @@
 
 #include "collideBox.h"
 #include "optixWhitted.h"
-
+#include "random.h"
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -622,7 +622,8 @@ public:
                 &hgr[idx + 1]));
             hgr[idx + 1].data.geometry.cube = args;
         }
-        else if (texture_id == WOOD) {
+        else if (texture_id == WOOD) { 
+            
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_texture_cube_prog_group,
                 &hgr[idx]));
@@ -639,6 +640,7 @@ public:
             hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
             hgr[idx].data.has_normal = false;
             hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
+
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.occlusion_texture_cube_prog_group,
                 &hgr[idx + 1]));
@@ -761,24 +763,82 @@ Creature* control = nullptr;//refer to the creature you are controlling.
 struct Particle : public Entity {
     static uint32_t OBJ_COUNT;
     int type = ENTITY_PARTICLE;
-    float beginTime = 0.f;...................
+    int texture_id = NONE;
+    float beginTime = 0.f;
     float lifeLength = 0.f;
-    Cube* md;
+    Cube args;
     Particle() { OBJ_COUNT++; }
-    ~Particle() { OBJ_COUNT++; }
-    void dX(const float3& vec)  override{
-        pos += vec;
-        if (md != nullptr)
-        {
-            md->center += vec;
-            model_need_update = true;
+    ~Particle() { OBJ_COUNT--; }
+    void set_bound(float result[6])
+    {
+        auto* aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = args.center - args.size;
+        float3 m_max = args.center + args.size;
+
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag(){
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) {
+        if (texture_id == NONE) {
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.radiance_metal_cube_prog_group,
+                &hgr[idx]));
+            hgr[idx].data.geometry.cube = args;
+            hgr[idx].data.shading.metal = {
+                    { 0.2f, 0.5f, 0.5f },   // Ka
+                    // { 0.2f, 0.7f, 0.8f },   // Kd
+                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
+                    { 0.9f, 0.9f, 0.9f },   // Ks
+                    { 0.5f, 0.5f, 0.5f },   // Kr
+                    64,                     // phong_exp
+            };
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.occlusion_metal_cube_prog_group,
+                &hgr[idx + 1]));
+            hgr[idx + 1].data.geometry.cube = args;
         }
+        else if (texture_id == WOOD) {
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.radiance_texture_cube_prog_group,
+                &hgr[idx]));
+            hgr[idx].data.geometry.cube = args;
+            hgr[idx].data.shading.metal = {
+                    { 0.2f, 0.5f, 0.5f },   // Ka
+                    // { 0.2f, 0.7f, 0.8f },   // Kd
+                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
+                    { 0.9f, 0.9f, 0.9f },   // Ks
+                    { 0.5f, 0.5f, 0.5f },   // Kr
+                    64,                     // phong_exp
+            };
+            hgr[idx].data.has_diffuse = true;
+            hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
+            hgr[idx].data.has_normal = false;
+            hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.occlusion_texture_cube_prog_group,
+                &hgr[idx + 1]));
+            hgr[idx + 1].data.geometry.cube = args;
+
+        }
+    }
+    void dX(const float3& vec) override{
+        pos += vec;
+        args.center += vec;
+        model_need_update = true;
     }
 
 };
+uint32_t Particle::OBJ_COUNT = 0;
 std::vector<Particle*> ptcList;
 
-void createParticle(float3& pos, float3& acceleration, float3& size, float timePtc)//请不要单独使用这个函数！！！ Please do not use this function isolatedly for this function wouldn't renew model_need_update = true;
+
+void createParticle(float3& pos, float3& acceleration, float3& size, float timePtc)
 {
     Particle* tmp = new Particle;
     if (tmp != nullptr)
@@ -788,8 +848,9 @@ void createParticle(float3& pos, float3& acceleration, float3& size, float timeP
         tmp->velocity = make_float3(0.f, 0.f, 0.f);
         tmp->beginTime = glfwGetTime();
         tmp->lifeLength = timePtc;
-        tmp->md = new Cube; tmp->md->center = pos; tmp->md->size = size;
-        //此处插入对cCube的调整，使得他更像粒子（比如改成灰色）
+        tmp->args.center = pos; tmp->args.size = size;
+        
+        tmp->texture_id = WOOD;//重要调整！！
         ptcList.push_back(tmp);
     }
     else {
@@ -799,18 +860,7 @@ void createParticle(float3& pos, float3& acceleration, float3& size, float timeP
 void eraseParticle(Particle* pPar)
 {
     if (pPar == nullptr) return;
-    for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end(); ++it)
-    {
-        if (*it == pPar->md)
-        {
-            delete* it; // 删除这个粒子的模型
-            model_need_update = true;
-            it = modelLst.erase(it);
-            break;  //干掉
-        }
-    }//此时已经完成了md的释放，之后只用释放掉pPar就行了
-
-    for (vector<Particle*>::iterator it = ptcList.begin(); it != ptcList.end(); ++it)
+    for (vector<Particle*>::iterator it = ptcList.begin(); it != ptcList.end();)
     {
         if (*it == pPar)
         {
@@ -818,23 +868,26 @@ void eraseParticle(Particle* pPar)
             it = ptcList.erase(it);
             break;  //干掉
         }
+        it++;
     }
 }
+
+unsigned int jiangzemin = 19260817;
 void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize)
 {
+    std::cout << "number=" << number << std::endl;
     while (number--)
     {
-        float theta = fmod(rand(), 2 * M_PI);
-        float radiu = fmod(rand(), r);
+        float theta = fmod(rnd(jiangzemin), 2 * M_PI);
+        float radiu = fmod(rnd(jiangzemin), r);
         float randz = maxSize;//fmod(rand(), maxSize);
         createParticle(
             place + make_float3(radiu * cos(theta), 0.f, radiu * sin(theta)),
             make_float3(radiu * cos(theta) * powerxz, powery, radiu * sin(theta) * powerxz),
             make_float3(randz, randz, randz),
-            5.f
+            2.f
         );
     }
-    model_need_update = true;
 }
 
 
@@ -1048,7 +1101,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
             model_need_update = true;
         }
         if (key == GLFW_KEY_T) {
-            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.5f);
+            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f);
         }
     }
     else if (action == GLFW_RELEASE)
@@ -1290,37 +1343,44 @@ void createGeometry( WhittedState &state ) {
     //
 
     // Load AABB into device memory
-    OptixAabb*  aabb = new OptixAabb[cModel::OBJ_COUNT];
+    int sumCOUNT = cModel::OBJ_COUNT + Particle::OBJ_COUNT;
+    OptixAabb*  aabb = new OptixAabb[sumCOUNT];
     CUdeviceptr d_aabb;
 
     for(int i=0; i<cModel::OBJ_COUNT; i++) {
         modelLst[i]->set_bound(reinterpret_cast<float*>(&aabb[i]));
     }
+    for (int i = 0; i < Particle::OBJ_COUNT; i++) {
+        ptcList[i]->set_bound(reinterpret_cast<float*>(&aabb[i+cModel::OBJ_COUNT]));
+    }
 
     // std::cerr << "[INFO] aabb size: " << cModel::OBJ_COUNT * sizeof( OptixAabb ) << std::endl;
     CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_aabb
-                            ), cModel::OBJ_COUNT * sizeof( OptixAabb ) ) );
+                            ), sumCOUNT * sizeof( OptixAabb ) ) );
     CUDA_CHECK( cudaMemcpy(
             reinterpret_cast<void*>( d_aabb ),
-            aabb,                                       // notice: 这里原来是&aabb, 但它之前居然能正常运作！
-            cModel::OBJ_COUNT * sizeof( OptixAabb ),
+            aabb,                                       // notice: 这里原来是&aabb, 但它之前居然能正常运作！ //我改回去了，看看还有没有magic number BUG //似乎不能正常渲染？？？
+            sumCOUNT * sizeof( OptixAabb ),
             cudaMemcpyHostToDevice
     ) );
 
     // Setup AABB build input
-    uint32_t* aabb_input_flags = new uint32_t[cModel::OBJ_COUNT];
+    uint32_t* aabb_input_flags = new uint32_t[sumCOUNT];
     for(int i=0; i<cModel::OBJ_COUNT; i++) {
         aabb_input_flags[i] = modelLst[i]->get_input_flag();
+    }
+    for (int i = 0; i < Particle::OBJ_COUNT; i++) {
+        aabb_input_flags[i+cModel::OBJ_COUNT] = ptcList[i]->get_input_flag();
     }
 
     /* TODO: This API cannot control flags for different ray type */
 
     // originally 0, 1, 2
-    uint32_t* sbt_index = new uint32_t[cModel::OBJ_COUNT];
-    for(int i=0; i<cModel::OBJ_COUNT; i++)
+    uint32_t* sbt_index = new uint32_t[sumCOUNT];
+    for(int i=0; i<sumCOUNT; i++)
         sbt_index[i] = i;
 
-    size_t size_sbt_index = cModel::OBJ_COUNT * sizeof(uint32_t);
+    size_t size_sbt_index = sumCOUNT * sizeof(uint32_t);
 
     if(d_sbt_index_allocated) {
         CUDA_CHECK( cudaFree( (void*)d_sbt_index) );
@@ -1340,8 +1400,8 @@ void createGeometry( WhittedState &state ) {
     aabb_input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
     aabb_input.customPrimitiveArray.aabbBuffers   = &d_aabb;
     aabb_input.customPrimitiveArray.flags         = aabb_input_flags;
-    aabb_input.customPrimitiveArray.numSbtRecords = cModel::OBJ_COUNT;
-    aabb_input.customPrimitiveArray.numPrimitives = cModel::OBJ_COUNT;
+    aabb_input.customPrimitiveArray.numSbtRecords = sumCOUNT;
+    aabb_input.customPrimitiveArray.numPrimitives = sumCOUNT;
     aabb_input.customPrimitiveArray.sbtIndexOffsetBuffer         = d_sbt_index;
     aabb_input.customPrimitiveArray.sbtIndexOffsetSizeInBytes    = sizeof( uint32_t );
     aabb_input.customPrimitiveArray.primitiveIndexOffset         = 0;
@@ -1909,12 +1969,16 @@ void createSBT( WhittedState &state)
 
     // Hitgroup program record
     {
-        size_t count_records = RAY_TYPE_COUNT * cModel::OBJ_COUNT;
+        size_t count_records = 2 * (cModel::OBJ_COUNT + Particle::OBJ_COUNT);
         HitGroupRecord* hitgroup_records = new HitGroupRecord[count_records];
 
         // Note: Fill SBT record array the same order like AS is built.
-        for(int i=0; i<count_records; i+=2) {
-            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i);
+        //std::cout << modelLst.size() << std::endl;
+        for(int i = 0; i < 2 * cModel::OBJ_COUNT ; i += 2) {
+            modelLst[i / 2]->set_hitgroup(state, hitgroup_records, i);
+        }
+       for(int i = 0; i < 2 * Particle::OBJ_COUNT; i += 2) {
+            ptcList[i / 2]->set_hitgroup(state, hitgroup_records, i + 2 * cModel::OBJ_COUNT);
         }
 
         size_t      sizeof_hitgroup_record = sizeof( HitGroupRecord );
@@ -2008,7 +2072,7 @@ void initCreature()
     Creature* enttmp = new Creature;
     crtList.push_back(enttmp);
     control = player = (Creature*)crtList[0];
-    player->pos = make_float3(8.0f, 0.7f, -4.0f);
+    player->pos = make_float3(3.0f, 3.0f, 3.0f);
     player->eye = make_float3(8.0f, 2.0f, -4.0f);
     player->lookat = make_float3(4.0f, 2.3f, -4.0f);
     player->up = make_float3(0.0f, 1.0f, 0.0f);
@@ -2046,36 +2110,30 @@ void updateParticle(float dt)//the motion of particles in dt time
     if (!ptcList.empty())
     {
         model_need_update = true;
-    }
-    for (vector<Particle*>::iterator it = ptcList.begin(); it != ptcList.end();)
-    {
-        Particle* ptc = *it;
-        if (nowTime - ptc->beginTime >= ptc->lifeLength)//进入删除操作
+        for (vector<Particle*>::iterator it = ptcList.begin(); it != ptcList.end();)
         {
-            //首先从modelLst移除ptc->md
-            for (vector<cModel*>::iterator itmd = modelLst.begin(); itmd != modelLst.end(); ++itmd)
+            Particle* ptc = *it;
+            if (nowTime - ptc->beginTime >= ptc->lifeLength)//进入删除操作
             {
-                if (*itmd == ptc->md)
-                {
-                    delete* itmd; // 删除这个粒子的模型
-                    itmd = modelLst.erase(itmd);
-                    break;  //删完了
-                }
+                delete* it;
+                it = ptcList.erase(it);
+                
             }
-            //此时已经完成了md的释放，之后只用释放掉ptc就行了
-            delete* it;
-            it = ptcList.erase(it);
-            continue;
+            else {
+                //否则开始处理物理项
+                ptc->velocity += ptc->acceleration;
+                ptc->velocity = ptc->velocity + make_float3(0.f, -40.f * dt, 0.f); //粒子不会飞行，也不会受到碰撞，一定会受到重力加速度影响
+                ptc->acceleration = make_float3(0.f, 0.f, 0.f);
+                ptc->dX(ptc->velocity * dt);
+                ptc->velocity.x *= 0.9f;
+                ptc->velocity.z *= 0.9f;
+                ++it;
+            }
+            
         }
-        //否则开始处理物理项
-        ptc->velocity += ptc->acceleration;
-        ptc->velocity = ptc->velocity + make_float3(0.f, -40.f * dt, 0.f); //粒子不会飞行，也不会受到碰撞，一定会受到重力加速度影响
-        ptc->acceleration = make_float3(0.f, 0.f, 0.f);
-        ptc->dX(ptc->velocity);
-        ptc->velocity.x *= 0.85f;
-        ptc->velocity.z *= 0.85f;
-        it++;
     }
+    std::cout << Particle::OBJ_COUNT <<" "<< ptcList.size()<<std::endl;
+    
 }
 void updateCreature(float dt)//the motion of entities in dt time
 {
@@ -2252,6 +2310,7 @@ void updateInteration()
     if (get_model_at(startp, mp))//如果眼睛处有方块（头被覆盖住）
     {
         istargeted = false;//放个锤子的方块
+        
     }
     else {
         float3 nextp = nearCeil(startp, vec);
@@ -2277,7 +2336,7 @@ void updateInteration()
             intersectPoint = startp;
         }
     }
-    
+
 
     //updateCreature
 }
@@ -2370,7 +2429,6 @@ int main( int argc, char* argv[] )
     sky.setSunTheta(DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
     sky.setSunPhi(DEFAULT_SUN_PHI);
     sky.setTurbidity(2.2f);
-
     //Split out sun for direct sampling
     sun.direction = sky.getSunDir();
     Onb onb(sun.direction);
@@ -2387,9 +2445,8 @@ int main( int argc, char* argv[] )
 
     // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
     // Licensed under the Creative Commons CC0 License.
-    load_texture("D:/git/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Color.jpg","wood_diffuse");
-    load_texture("D:/git/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Normal.jpg", "wood_normal");
-
+    load_texture("C:/Users/XSN/Documents/GitHub/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Color.jpg","wood_diffuse");
+    load_texture("C:/Users/XSN/Documents/GitHub/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Normal.jpg","wood_normal");
     //
     // Parse command line options
     //
@@ -2440,7 +2497,6 @@ int main( int argc, char* argv[] )
         modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));
-
         initEntitySystem();
 
         initCameraState();
@@ -2453,7 +2509,6 @@ int main( int argc, char* argv[] )
         createPipeline ( state );
         createTextures(  );
         createSBT      ( state);
-
 
         initLaunchParams( state );
 
