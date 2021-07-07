@@ -586,7 +586,7 @@ public:
         collidable = true;
     }
 
-    cCube(float3 c, float3 s, ModelTexture tex_id): 
+    cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, s), tex_id) {
         std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
