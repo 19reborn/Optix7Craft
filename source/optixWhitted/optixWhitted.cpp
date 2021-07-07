@@ -381,7 +381,7 @@ public:
     virtual uint32_t get_input_flag() = 0;
     virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
     virtual float3 get_center() {return {0, 0, 0};}
-    virtual float get_horizontal_size() = 0;
+    virtual float get_horizontal_size() { return 0.f; };
     CollideBox& get_collideBox() {return collideBox;}
     void set_map_modelAt();
     void clear_map_modelAt();
@@ -660,6 +660,64 @@ public:
         collideBox.center = pos;
         set_map_modelAt();
     }
+};
+
+class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
+public:
+    Parallelogram args;
+
+    cRect(float3 v1, float3 v2, float3 anchor, ModelTexture tex_id=NONE):
+        cModel(CollideBox(anchor, {1.f, 1.f, 1.f}) , tex_id) {
+        std::cerr << "az!\n";
+        args = {v1, v2, anchor};
+    }
+    string get_type() {return "Rect";}
+    void set_bound(float result[6]) override {
+        // v1 and v2 are scaled by 1./length^2.  Rescale back to normal for the bounds computation.
+        const float3 tv1  = args.v1 / dot( args.v1, args.v1 );
+        const float3 tv2  = args.v2 / dot( args.v2, args.v2 );
+        const float3 p00  = args.anchor;
+        const float3 p01  = args.anchor + tv1;
+        const float3 p10  = args.anchor + tv2;
+        const float3 p11  = args.anchor + tv1 + tv2;
+
+        auto aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = fminf( fminf( p00, p01 ), fminf( p10, p11 ));
+        float3 m_max = fmaxf( fmaxf( p00, p01 ), fmaxf( p10, p11 ));
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.radiance_floor_prog_group,
+                &hgr[idx] ) );
+        hgr[idx].data.geometry.parallelogram = args;
+        hgr[idx].data.shading.checker = {
+                { 0.8f, 0.3f, 0.15f },      // Kd1
+                { 0.9f, 0.85f, 0.05f },     // Kd2
+                { 0.8f, 0.3f, 0.15f },      // Ka1
+                { 0.9f, 0.85f, 0.05f },     // Ka2
+                { 0.0f, 0.0f, 0.0f },       // Ks1
+                { 0.0f, 0.0f, 0.0f },       // Ks2
+                { 0.0f, 0.0f, 0.0f },       // Kr1
+                { 0.0f, 0.0f, 0.0f },       // Kr2
+                0.0f,                       // phong_exp1
+                0.0f,                       // phong_exp2
+                { 32.0f, 16.0f }            // inv_checker_size
+        };
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.occlusion_floor_prog_group,
+                &hgr[idx+1] ) );
+        hgr[idx+1].data.geometry.parallelogram = args;
+
+    }
+    void move_to(float3 pos) {}
 };
 
 vector<cModel*> modelLst;
@@ -2460,6 +2518,12 @@ int main( int argc, char* argv[] )
         modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));
+
+        modelLst.push_back(new cRect(
+            make_float3( 32.0f, 0.0f, 0.0f ),
+            make_float3( 0.0f, 0.0f, 16.0f ),
+            make_float3( -16.0f, 0.01f, -8.0f )
+        ));
 
         initEntitySystem();
 
