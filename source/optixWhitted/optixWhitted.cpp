@@ -353,10 +353,11 @@ float3 nearCeil(float3& a,float3& vec)
 //
 //------------------------------------------------------------------------------
 enum ModelTexture {
-    NONE = -1,
+    NONE = 0,
     WOOD,
+    MT_SIZE // 请确保这个出现在最后一个
 };
-
+ModelTexture curTexture = NONE;
 
 class cModel {
 public:
@@ -629,7 +630,6 @@ public:
             hgr[idx].data.geometry.cube = args;
             hgr[idx].data.shading.metal = {
                     { 0.2f, 0.5f, 0.5f },   // Ka
-                    // { 0.2f, 0.7f, 0.8f },   // Kd
                     { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                     { 0.9f, 0.9f, 0.9f },   // Ks
                     { 0.5f, 0.5f, 0.5f },   // Kr
@@ -908,7 +908,7 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
                 CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f,0.5f,0.5f));
                 if (!CollideBox::collide_check(control->box, tmpCLBOX))
                 {
-                    modelLst.push_back(new cCube(target, 0.5f));
+                    modelLst.push_back(new cCube(target, 0.5f, curTexture));
                     model_need_update = true;
                 }
 
@@ -940,6 +940,14 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
     }
 }
 
+static void mouseScrollCallback ( GLFWwindow* window, double xoffset, double yoffset ) {
+    if(yoffset < 0) {
+        curTexture = (ModelTexture)((curTexture + 1) % MT_SIZE);
+    }
+    if(yoffset > 0) {
+        curTexture = (ModelTexture)((curTexture + MT_SIZE - 1) % MT_SIZE);
+    }
+}
 
 static void cursorPosCallback( GLFWwindow* window, double xpos, double ypos )
 {
@@ -1077,14 +1085,6 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
     }
 }
 
-
-static void scrollCallback( GLFWwindow* window, double xscroll, double yscroll )
-{
-    if (trackball.wheelEvent((int)yscroll))
-    {
-    }
-}
-
 //------------------------------------------------------------------------------
 //
 //  Helper functions
@@ -1099,6 +1099,14 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 768x768\n";
     std::cerr << "         --help | -h                 Print this usage message\n";
     exit( 0 );
+}
+
+string get_texture_name(ModelTexture tex_id) {
+    switch (tex_id) {
+        case NONE: return "IRON";   // 暂定，暂定
+        case WOOD: return "WOOD";
+        default: return "ERROR";
+    }
 }
 
 void displayHUD(float width, float height) {
@@ -1116,6 +1124,8 @@ void displayHUD(float width, float height) {
 
     typedef std::chrono::duration<double, std::milli> durationMs;
 
+    // center
+
     const char* sCenter = "    |\n    |\n----+----\n    |\n    |";
     //todo imgui 字体大小/缩放
     float font_size_x = 80;
@@ -1124,6 +1134,17 @@ void displayHUD(float width, float height) {
     sutil::displayText( sCenter,
                         width/2 - font_size_x / 2,
                         height/2 - font_size_y / 2 );
+
+    sutil::endFrameImGui();
+
+    // item
+
+    sutil::beginFrameImGui();
+
+    string sLeftDown = "CurBlock:\n" + get_texture_name(curTexture);
+    sutil::displayText( sLeftDown.c_str(),
+                        0,
+                        height - font_size_y / 2 );
 
     sutil::endFrameImGui();
 
@@ -2386,8 +2407,8 @@ int main( int argc, char* argv[] )
 
     // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
     // Licensed under the Creative Commons CC0 License.
-    load_texture("D:/git/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Color.jpg","wood_diffuse");
-    load_texture("D:/git/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Normal.jpg", "wood_normal");
+    load_texture("C:/Users/wr786/Documents/GitHub/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Color.jpg","wood_diffuse");
+    load_texture("C:/Users/wr786/Documents/GitHub/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Normal.jpg", "wood_normal");
 
     //
     // Parse command line options
@@ -2465,10 +2486,10 @@ int main( int argc, char* argv[] )
             GLFWwindow* window = sutil::initUI( "optixWhitted", state.params.width, state.params.height );
             glfwSetMouseButtonCallback  ( window, mouseButtonCallback   );
             glfwSetCursorPosCallback    ( window, cursorPosCallback     );
+            glfwSetScrollCallback       ( window, mouseScrollCallback   );
             glfwSetWindowSizeCallback   ( window, windowSizeCallback    );
             glfwSetWindowIconifyCallback( window, windowIconifyCallback );
             glfwSetKeyCallback          ( window, keyCallback           );
-            glfwSetScrollCallback       ( window, scrollCallback        );
             glfwSetWindowUserPointer    ( window, &state.params         );
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             {
