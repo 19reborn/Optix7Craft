@@ -38,6 +38,7 @@
 #include "helpers.h"
 #include "random.h"
 
+
 #ifndef M_PI_4f
 #define M_PI_4f     0.785398163397448309616f
 #endif
@@ -263,7 +264,6 @@ __device__ void phongShade( float3 p_Kd,
     const float3 ray_dir  = optixGetWorldRayDirection();
     const float  ray_t    = optixGetRayTmax();
 
-    RadiancePRD prd = getRadiancePRD();
 
     float3 hit_point = ray_orig + ray_t * ray_dir;
 
