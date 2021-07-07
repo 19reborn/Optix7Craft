@@ -177,6 +177,17 @@ struct WhittedState {
     OptixShaderBindingTable     sbt                       = {};
 };
 
+// 解决cuda内存冗余
+CUdeviceptr    d_sbt_index;
+bool d_sbt_index_allocated = false;
+CUdeviceptr d_raygen_record;
+bool d_raygen_record_allocated = false;
+CUdeviceptr d_miss_record;
+bool d_miss_record_allocated = false;
+CUdeviceptr d_hitgroup_records;
+bool d_hitgroup_records_allocated = false;
+bool first_launch = true;
+
 //------------------------------------------------------------------------------
 //
 //  Texture loading Functions
@@ -831,12 +842,6 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
                 control->isOnGround = false;
             }
         }
-        // ball place for test
-        if (key == GLFW_KEY_E) 
-        {
-            modelLst.push_back(new cSphereShell({ 4.0f, 2.3f, -4.0f }, 0.96f, 1.0f));
-            model_need_update = true;
-        }
         int curWidth = 0, curHeight = 0;
         glfwGetWindowSize(window, &curWidth, &curHeight);
         // make the window smaller
@@ -930,6 +935,9 @@ void displayHUD(float width, float height) {
 
 void initLaunchParams( WhittedState& state )
 {
+    if(!first_launch) {
+        CUDA_CHECK(cudaFree((void*)state.params.accum_buffer));
+    }
     CUDA_CHECK( cudaMalloc(
             reinterpret_cast<void**>( &state.params.accum_buffer ),
             state.params.width*state.params.height*sizeof(float4)
@@ -945,10 +953,17 @@ void initLaunchParams( WhittedState& state )
     state.params.max_depth = max_trace;
     state.params.scene_epsilon = 1.e-4f;
 
-    CUDA_CHECK( cudaStreamCreate( &state.stream ) );
+    if(first_launch) {
+        CUDA_CHECK( cudaStreamCreate( &state.stream ) );
+    }
+    if(!first_launch) {
+        CUDA_CHECK(cudaFree((void*)state.d_params));
+    }
     CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &state.d_params ), sizeof( Params ) ) );
 
     state.params.handle = state.gas_handle;
+
+    first_launch = false;
 }
 
 static void buildGas(
@@ -1032,7 +1047,7 @@ void createGeometry( WhittedState &state ) {
         modelLst[i]->set_bound(reinterpret_cast<float*>(&aabb[i]));
     }
 
-    std::cerr << "[INFO] aabb size: " << cModel::OBJ_COUNT * sizeof( OptixAabb ) << std::endl;
+    // std::cerr << "[INFO] aabb size: " << cModel::OBJ_COUNT * sizeof( OptixAabb ) << std::endl;
     CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_aabb
                             ), cModel::OBJ_COUNT * sizeof( OptixAabb ) ) );
     CUDA_CHECK( cudaMemcpy(
@@ -1055,9 +1070,12 @@ void createGeometry( WhittedState &state ) {
     for(int i=0; i<cModel::OBJ_COUNT; i++)
         sbt_index[i] = i;
 
-    CUdeviceptr    d_sbt_index;
-
     size_t size_sbt_index = cModel::OBJ_COUNT * sizeof(uint32_t);
+
+    if(d_sbt_index_allocated) {
+        CUDA_CHECK( cudaFree( (void*)d_sbt_index) );
+        d_sbt_index_allocated = false;  // muda
+    }
 
     CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &d_sbt_index ), size_sbt_index ) );
     CUDA_CHECK( cudaMemcpy(
@@ -1065,6 +1083,8 @@ void createGeometry( WhittedState &state ) {
             sbt_index,
             size_sbt_index,
             cudaMemcpyHostToDevice ) );
+
+    d_sbt_index_allocated = true;
 
     OptixBuildInput aabb_input = {};
     aabb_input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
@@ -1588,22 +1608,36 @@ void createSBT( WhittedState &state)
 {
     // Raygen program record
     {
-        CUdeviceptr d_raygen_record;
         size_t sizeof_raygen_record = sizeof( RayGenRecord );
+
+        if(d_raygen_record_allocated) {
+            CUDA_CHECK( cudaFree((void*)d_raygen_record) );
+            d_raygen_record_allocated = false;
+        }
+
         CUDA_CHECK( cudaMalloc(
                 reinterpret_cast<void**>( &d_raygen_record ),
                 sizeof_raygen_record ) );
+
+        d_raygen_record_allocated = true;
 
         state.sbt.raygenRecord = d_raygen_record;
     }
 
     // Miss program record
     {
-        CUdeviceptr d_miss_record;
         size_t sizeof_miss_record = sizeof( MissRecord );
+     
+        if(d_miss_record_allocated) {
+            CUDA_CHECK(cudaFree((void*)d_miss_record));
+            d_miss_record_allocated = false;
+        }
+
         CUDA_CHECK( cudaMalloc(
                 reinterpret_cast<void**>( &d_miss_record ),
                 sizeof_miss_record*RAY_TYPE_COUNT ) );
+
+        d_miss_record_allocated = true;
 
         MissRecord ms_sbt[RAY_TYPE_COUNT];
         optixSbtRecordPackHeader( state.radiance_miss_prog_group, &ms_sbt[0] );
@@ -1632,8 +1666,13 @@ void createSBT( WhittedState &state)
             modelLst[i/2]->set_hitgroup(state, hitgroup_records, i, 0);
         }
 
-        CUdeviceptr d_hitgroup_records;
         size_t      sizeof_hitgroup_record = sizeof( HitGroupRecord );
+        
+        if(d_hitgroup_records_allocated) {
+            CUDA_CHECK(cudaFree((void*)d_hitgroup_records));
+            d_hitgroup_records_allocated = false;
+        }
+        
         CUDA_CHECK( cudaMalloc(
                 reinterpret_cast<void**>( &d_hitgroup_records ),
                 sizeof_hitgroup_record*count_records
@@ -1645,6 +1684,8 @@ void createSBT( WhittedState &state)
                 sizeof_hitgroup_record*count_records,
                 cudaMemcpyHostToDevice
         ) );
+
+        d_hitgroup_records_allocated = true;
 
         state.sbt.hitgroupRecordBase            = d_hitgroup_records;
         state.sbt.hitgroupRecordCount           = count_records;
@@ -2190,7 +2231,7 @@ int main( int argc, char* argv[] )
                     display_time += t1 - t0;
 
                     displayHUD(state.params.width, state.params.height);
-                    // sutil::displayStats( state_update_time, render_time, display_time );
+                    sutil::displayStats( state_update_time, render_time, display_time );
 
                     glfwSwapBuffers( window );
 

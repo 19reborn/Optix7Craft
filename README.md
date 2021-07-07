@@ -27,3 +27,13 @@ git clone https://github.com/19reborn/Ray-Tracing-Project.git
 - Open folder as a CLion project
 - add cmake option `-G "Visual Studio 16 2019"`
 
+## Game Control
+
+- <kbd>Q</kbd><kbd>Esc</kbd> Quit the game
+- <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move Forward / Left / Backward / Right
+- <kbd>Left Shift</kbd> Run
+- <kbd>Space</kbd> Jump
+- <kbd>M</kbd> Fly Mode
+- <kbd>Left Ctrl</kbd> Landing in Fly Mode
+- <kbd>F10</kbd> <kbd>F11</kbd> Zoom the window size - / +
+
