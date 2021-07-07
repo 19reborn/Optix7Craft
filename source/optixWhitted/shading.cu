@@ -654,7 +654,7 @@ extern "C" __global__ void __anyhit__glass_occlusion()
         optixIgnoreIntersection();
 }
 
-extern "C" __global__ void __closesthit__texutre_radiance()
+extern "C" __global__ void __closesthit__texture_radiance()
 {
     // The demand-loaded texture id is provided in the hit group data.
     HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());

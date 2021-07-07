@@ -1549,6 +1549,7 @@ void createPipeline( WhittedState &state )
     createGlassSphereProgram( state, program_groups );
     createMetalSphereProgram( state, program_groups );
     createMetalCubeProgram( state, program_groups );
+    createTextureCubeProgram(state, program_groups);
     createFloorProgram( state, program_groups );
     createMissProgram( state, program_groups );
 
@@ -2045,6 +2046,8 @@ void cleanupState( WhittedState& state )
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_glass_sphere_prog_group ) );
     OPTIX_CHECK( optixProgramGroupDestroy  ( state.radiance_metal_cube_prog_group   ) );
     OPTIX_CHECK( optixProgramGroupDestroy  ( state.occlusion_metal_cube_prog_group  ) );
+    OPTIX_CHECK( optixProgramGroupDestroy  ( state.radiance_texture_cube_prog_group   ) );
+    OPTIX_CHECK( optixProgramGroupDestroy  ( state.occlusion_texture_cube_prog_group  ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_miss_prog_group         ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.radiance_floor_prog_group        ) );
     OPTIX_CHECK( optixProgramGroupDestroy ( state.occlusion_floor_prog_group       ) );
@@ -2061,6 +2064,11 @@ void cleanupState( WhittedState& state )
     CUDA_CHECK( cudaFree( reinterpret_cast<void*>( state.d_gas_output_buffer    ) ) );
     CUDA_CHECK( cudaFree( reinterpret_cast<void*>( state.params.accum_buffer    ) ) );
     CUDA_CHECK( cudaFree( reinterpret_cast<void*>( state.d_params               ) ) );
+
+    //if (state.params.nonDemandTexture != 0)
+    //    CUDA_CHECK(cudaDestroyTextureObject(state.params.nonDemandTexture));
+    //if (state.params.nonDemandTextureArray != 0)
+    //   CUDA_CHECK(cudaFreeMipmappedArray(state.params.nonDemandTextureArray));
 }
 
 int main( int argc, char* argv[] )
@@ -2087,7 +2095,6 @@ int main( int argc, char* argv[] )
     sun.color = sky.sunColor() * sqrt_sun_scale * sqrt_sun_scale;
     sun.casts_shadow = 1;
 
-    float textureScale = 4.0f;
 
     // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
     // Licensed under the Creative Commons CC0 License.
@@ -2152,7 +2159,7 @@ int main( int argc, char* argv[] )
         // Set up OptiX state
         //
         createContext  ( state );
-
+      
         std::vector<unsigned int> availableDevices;
         getDevices(availableDevices);
         demandLoading::Options options{};
