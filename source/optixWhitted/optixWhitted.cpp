@@ -37,6 +37,8 @@
 
 #include <sampleConfig.h>
 
+#include <sutil/sutilapi.h>
+
 #include <sutil/Camera.h>
 #include <sutil/Trackball.h>
 #include <sutil/CUDAOutputBuffer.h>
@@ -72,7 +74,6 @@ using std::string;
 using std::map;
 using std::unordered_map;
 
-
 //--------------------------------------------------------------------------- ---
 //
 // Globals
@@ -100,7 +101,7 @@ bool switchcam = true; //Whenever you wanna change printer control, give this bo
 // Texture 
 std::vector<texture_map*>      texture_list;
 std::map<std::string, int> textures;
-
+std::vector<cudaArray_t>         textureArrays;
 
 // Mouse state
 int32_t           mouse_button = -1;
@@ -635,9 +636,9 @@ public:
                     64,                     // phong_exp
             };
             hgr[idx].data.has_diffuse = true;
-            hgr[idx].data.diffuse_map = textures["wood_diffuse"];
+            hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
             hgr[idx].data.has_normal = false;
-            hgr[idx].data.normal_map = textures["wood_normal"];
+            hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.occlusion_texture_cube_prog_group,
                 &hgr[idx + 1]));
@@ -1228,6 +1229,59 @@ static void buildGas(
         d_gas_output_buffer = d_buffer_temp_output_gas_and_compacted_size;
     }
 }
+
+void createTextures()
+{
+    int numTextures = (int)texture_list.size();
+
+    textureArrays.resize(numTextures);
+
+    for (int textureID = 0; textureID < numTextures; textureID++) {
+        auto texture = texture_list[textureID];
+
+        cudaResourceDesc res_desc = {};
+
+        cudaChannelFormatDesc channel_desc;
+        int32_t width = texture->resolution.x;
+        int32_t height = texture->resolution.y;
+        int32_t numComponents = 4;
+        int32_t pitch = width * numComponents * sizeof(uint8_t);
+        channel_desc = cudaCreateChannelDesc<uchar4>();
+
+        cudaArray_t& pixelArray = textureArrays[textureID];
+        CUDA_CHECK(cudaMallocArray(&pixelArray,
+            &channel_desc,
+            width, height));
+
+        CUDA_CHECK(cudaMemcpy2DToArray(pixelArray,
+            /* offset */0, 0,
+            texture->pixel,
+            pitch, pitch, height,
+            cudaMemcpyHostToDevice));
+
+        res_desc.resType = cudaResourceTypeArray;
+        res_desc.res.array.array = pixelArray;
+
+        cudaTextureDesc tex_desc = {};
+        tex_desc.addressMode[0] = cudaAddressModeWrap;
+        tex_desc.addressMode[1] = cudaAddressModeWrap;
+        tex_desc.filterMode = cudaFilterModeLinear;
+        tex_desc.readMode = cudaReadModeNormalizedFloat;
+        tex_desc.normalizedCoords = 1;
+        tex_desc.maxAnisotropy = 1;
+        tex_desc.maxMipmapLevelClamp = 99;
+        tex_desc.minMipmapLevelClamp = 0;
+        tex_desc.mipmapFilterMode = cudaFilterModePoint;
+        tex_desc.borderColor[0] = 1.0f;
+        tex_desc.sRGB = 0;
+
+        // Create texture object
+        cudaTextureObject_t cuda_tex = 0;
+        CUDA_CHECK(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
+        texture_list[textureID]->textureObject = cuda_tex;
+    }
+}
+
 
 void createGeometry( WhittedState &state ) {
     //
@@ -2396,6 +2450,7 @@ int main( int argc, char* argv[] )
         createContext  ( state );
         createGeometry  ( state );
         createPipeline ( state );
+        createTextures(  );
         createSBT      ( state);
 
 

@@ -37,7 +37,6 @@
 #include <optix_types.h>
 #include <optix.h>
 
-
 #include "sunsky.hpp"
 
 enum RayType
@@ -249,4 +248,6 @@ struct texture_map {
 
     unsigned int * pixel{ nullptr };
     int2     resolution{ -1 };
+    
+    cudaTextureObject_t textureObject;
 };
