@@ -353,10 +353,11 @@ float3 nearCeil(float3& a,float3& vec)
 //
 //------------------------------------------------------------------------------
 enum ModelTexture {
-    NONE = -1,
+    NONE = 0,
     WOOD,
+    MT_SIZE // 请确保这个出现在最后一个
 };
-
+ModelTexture curTexture = NONE;
 
 class cModel {
 public:
@@ -380,7 +381,7 @@ public:
     virtual uint32_t get_input_flag() = 0;
     virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
     virtual float3 get_center() {return {0, 0, 0};}
-    virtual float get_horizontal_size() = 0;
+    virtual float get_horizontal_size() { return 0.f; };
     CollideBox& get_collideBox() {return collideBox;}
     void set_map_modelAt();
     void clear_map_modelAt();
@@ -630,7 +631,6 @@ public:
             hgr[idx].data.geometry.cube = args;
             hgr[idx].data.shading.metal = {
                     { 0.2f, 0.5f, 0.5f },   // Ka
-                    // { 0.2f, 0.7f, 0.8f },   // Kd
                     { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                     { 0.9f, 0.9f, 0.9f },   // Ks
                     { 0.5f, 0.5f, 0.5f },   // Kr
@@ -662,6 +662,64 @@ public:
         collideBox.center = pos;
         set_map_modelAt();
     }
+};
+
+class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
+public:
+    Parallelogram args;
+
+    cRect(float3 v1, float3 v2, float3 anchor, ModelTexture tex_id=NONE):
+        cModel(CollideBox(anchor, {1.f, 1.f, 1.f}) , tex_id) {
+        std::cerr << "az!\n";
+        args = {v1, v2, anchor};
+    }
+    string get_type() {return "Rect";}
+    void set_bound(float result[6]) override {
+        // v1 and v2 are scaled by 1./length^2.  Rescale back to normal for the bounds computation.
+        const float3 tv1  = args.v1 / dot( args.v1, args.v1 );
+        const float3 tv2  = args.v2 / dot( args.v2, args.v2 );
+        const float3 p00  = args.anchor;
+        const float3 p01  = args.anchor + tv1;
+        const float3 p10  = args.anchor + tv2;
+        const float3 p11  = args.anchor + tv1 + tv2;
+
+        auto aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = fminf( fminf( p00, p01 ), fminf( p10, p11 ));
+        float3 m_max = fmaxf( fmaxf( p00, p01 ), fmaxf( p10, p11 ));
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.radiance_floor_prog_group,
+                &hgr[idx] ) );
+        hgr[idx].data.geometry.parallelogram = args;
+        hgr[idx].data.shading.checker = {
+                { 0.8f, 0.3f, 0.15f },      // Kd1
+                { 0.9f, 0.85f, 0.05f },     // Kd2
+                { 0.8f, 0.3f, 0.15f },      // Ka1
+                { 0.9f, 0.85f, 0.05f },     // Ka2
+                { 0.0f, 0.0f, 0.0f },       // Ks1
+                { 0.0f, 0.0f, 0.0f },       // Ks2
+                { 0.0f, 0.0f, 0.0f },       // Kr1
+                { 0.0f, 0.0f, 0.0f },       // Kr2
+                0.0f,                       // phong_exp1
+                0.0f,                       // phong_exp2
+                { 32.0f, 16.0f }            // inv_checker_size
+        };
+        OPTIX_CHECK( optixSbtRecordPackHeader(
+                state.occlusion_floor_prog_group,
+                &hgr[idx+1] ) );
+        hgr[idx+1].data.geometry.parallelogram = args;
+
+    }
+    void move_to(float3 pos) {}
 };
 
 vector<cModel*> modelLst;
@@ -962,7 +1020,7 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
                 CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f,0.5f,0.5f));
                 if (!CollideBox::collide_check(control->box, tmpCLBOX))
                 {
-                    modelLst.push_back(new cCube(target, 0.5f));
+                    modelLst.push_back(new cCube(target, 0.5f, curTexture));
                     model_need_update = true;
                 }
 
@@ -994,6 +1052,14 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
     }
 }
 
+static void mouseScrollCallback ( GLFWwindow* window, double xoffset, double yoffset ) {
+    if(yoffset < 0) {
+        curTexture = (ModelTexture)((curTexture + 1) % MT_SIZE);
+    }
+    if(yoffset > 0) {
+        curTexture = (ModelTexture)((curTexture + MT_SIZE - 1) % MT_SIZE);
+    }
+}
 
 static void cursorPosCallback( GLFWwindow* window, double xpos, double ypos )
 {
@@ -1131,14 +1197,6 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
     }
 }
 
-
-static void scrollCallback( GLFWwindow* window, double xscroll, double yscroll )
-{
-    if (trackball.wheelEvent((int)yscroll))
-    {
-    }
-}
-
 //------------------------------------------------------------------------------
 //
 //  Helper functions
@@ -1153,6 +1211,14 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 768x768\n";
     std::cerr << "         --help | -h                 Print this usage message\n";
     exit( 0 );
+}
+
+string get_texture_name(ModelTexture tex_id) {
+    switch (tex_id) {
+        case NONE: return "IRON";   // 暂定，暂定
+        case WOOD: return "WOOD";
+        default: return "ERROR";
+    }
 }
 
 void displayHUD(float width, float height) {
@@ -1170,6 +1236,8 @@ void displayHUD(float width, float height) {
 
     typedef std::chrono::duration<double, std::milli> durationMs;
 
+    // center
+
     const char* sCenter = "    |\n    |\n----+----\n    |\n    |";
     //todo imgui 字体大小/缩放
     float font_size_x = 80;
@@ -1178,6 +1246,17 @@ void displayHUD(float width, float height) {
     sutil::displayText( sCenter,
                         width/2 - font_size_x / 2,
                         height/2 - font_size_y / 2 );
+
+    sutil::endFrameImGui();
+
+    // item
+
+    sutil::beginFrameImGui();
+
+    string sLeftDown = "CurBlock:\n" + get_texture_name(curTexture);
+    sutil::displayText( sLeftDown.c_str(),
+                        0,
+                        height - font_size_y / 2 );
 
     sutil::endFrameImGui();
 
@@ -2497,6 +2576,13 @@ int main( int argc, char* argv[] )
         modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));
+
+        modelLst.push_back(new cRect(
+            make_float3( 32.0f, 0.0f, 0.0f ),
+            make_float3( 0.0f, 0.0f, 16.0f ),
+            make_float3( -16.0f, 0.01f, -8.0f )
+        ));
+
         initEntitySystem();
 
         initCameraState();
@@ -2521,10 +2607,10 @@ int main( int argc, char* argv[] )
             GLFWwindow* window = sutil::initUI( "optixWhitted", state.params.width, state.params.height );
             glfwSetMouseButtonCallback  ( window, mouseButtonCallback   );
             glfwSetCursorPosCallback    ( window, cursorPosCallback     );
+            glfwSetScrollCallback       ( window, mouseScrollCallback   );
             glfwSetWindowSizeCallback   ( window, windowSizeCallback    );
             glfwSetWindowIconifyCallback( window, windowIconifyCallback );
             glfwSetKeyCallback          ( window, keyCallback           );
-            glfwSetScrollCallback       ( window, scrollCallback        );
             glfwSetWindowUserPointer    ( window, &state.params         );
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             {
