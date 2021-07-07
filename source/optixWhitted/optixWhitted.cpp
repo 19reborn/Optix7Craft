@@ -1295,13 +1295,16 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 5u;
-    state.params.light = g_light;
-    state.params.sun = sun;
-    state.params.sky = sky;
-    state.params.ambient_light_color = make_float3( 0.4f, 0.4f, 0.4f );
-    state.params.max_depth = max_trace;
-    state.params.scene_epsilon = 1.e-4f;
+    
+    if(first_launch) {
+        state.params.samples_per_launch = 5u;
+        state.params.light = g_light;
+        state.params.sun = sun;
+        state.params.sky = sky;
+        state.params.ambient_light_color = make_float3( 0.4f, 0.4f, 0.4f );
+        state.params.max_depth = max_trace;
+        state.params.scene_epsilon = 1.e-4f;
+    }
 
     if(first_launch) {
         CUDA_CHECK( cudaStreamCreate( &state.stream ) );
@@ -1526,7 +1529,7 @@ void createGeometry( WhittedState &state ) {
 
     CUDA_CHECK( cudaFree( (void*)d_aabb) );
 
-    delete aabb;
+    delete[] aabb;
     delete sbt_index;
 }
 
@@ -2110,7 +2113,7 @@ void createSBT( WhittedState &state)
         state.sbt.hitgroupRecordCount           = count_records;
         state.sbt.hitgroupRecordStrideInBytes   = static_cast<uint32_t>( sizeof_hitgroup_record );
 
-        delete hitgroup_records;
+        delete[] hitgroup_records;
     }
 }
 
