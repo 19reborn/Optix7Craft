@@ -36,4 +36,5 @@ git clone https://github.com/19reborn/Ray-Tracing-Project.git
 - <kbd>M</kbd> Fly Mode
 - <kbd>Left Ctrl</kbd> Landing in Fly Mode
 - <kbd>F10</kbd> <kbd>F11</kbd> Zoom the window size - / +
+- Scroll: Switch the type of block to place
 
