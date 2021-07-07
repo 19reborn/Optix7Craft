@@ -767,12 +767,6 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
                 control->isOnGround = false;
             }
         }
-        // ball place for test
-        if (key == GLFW_KEY_E) 
-        {
-            modelLst.push_back(new cSphereShell({ 4.0f, 2.3f, -4.0f }, 0.96f, 1.0f));
-            model_need_update = true;
-        }
         int curWidth = 0, curHeight = 0;
         glfwGetWindowSize(window, &curWidth, &curHeight);
         // make the window smaller
@@ -2091,7 +2085,7 @@ int main( int argc, char* argv[] )
                     display_time += t1 - t0;
 
                     displayHUD(state.params.width, state.params.height);
-                    // sutil::displayStats( state_update_time, render_time, display_time );
+                    sutil::displayStats( state_update_time, render_time, display_time );
 
                     glfwSwapBuffers( window );
 
