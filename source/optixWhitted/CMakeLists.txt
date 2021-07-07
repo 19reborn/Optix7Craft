@@ -26,7 +26,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 # CUDA code includes from lib/DemandLoading, but the library target doesn't set the CUDA include path.
-include_directories( ../lib/DemandLoading/include )
 
 OPTIX_add_sample_executable( optixWhitted target_name
   ${SAMPLES_CUDA_DIR}/helpers.h  
@@ -45,5 +44,4 @@ OPTIX_add_sample_executable( optixWhitted target_name
 
 target_link_libraries( ${target_name}
   ${CUDA_LIBRARIES}
-  DemandLoading
   )
