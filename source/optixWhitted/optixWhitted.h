@@ -85,7 +85,7 @@ struct Params
 
     OptixTraversableHandle handle;
 
-     Texture data
+     //Texture data
     float                        mipLevelBias;
     demandLoading::DeviceContext demandTextureContext;
     cudaMipmappedArray_t         nonDemandTextureArray;
