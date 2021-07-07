@@ -449,7 +449,6 @@ public:
 
     cSphere(float3 c, float r, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {r, r, r}), tex_id) {
-        std::cerr << "[INFO] A Sphere Generated.\n";
         args.center = c;
         args.radius = r;
         collidable = true;
@@ -508,7 +507,6 @@ public:
 
     cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {r2, r2, r2}), tex_id) {
-        std::cerr << "[INFO] A SphereShell Generated.\n";
         args.center = c;
         args.radius1 = r1;
         args.radius2 = r2;
@@ -574,7 +572,6 @@ public:
 
     cCube(float3 c, float s, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {s, s, s}), tex_id) {
-        std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = {s, s, s};
         collidable = true;
@@ -582,7 +579,6 @@ public:
 
     cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, s), tex_id) {
-        std::cerr << "[INFO] A Cube Generated.\n";
         args.center = c;
         args.size = s;
         collidable = true;
@@ -1155,10 +1151,9 @@ void initLaunchParams( WhittedState& state )
     if(first_launch) {
         CUDA_CHECK( cudaStreamCreate( &state.stream ) );
     }
-    if(!first_launch) {
-        CUDA_CHECK(cudaFree((void*)state.d_params));
+    if(first_launch) {
+        CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &state.d_params ), sizeof( Params ) ) );
     }
-    CUDA_CHECK( cudaMalloc( reinterpret_cast<void**>( &state.d_params ), sizeof( Params ) ) );
 
     state.params.handle = state.gas_handle;
 
