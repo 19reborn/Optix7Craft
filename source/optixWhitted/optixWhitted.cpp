@@ -962,7 +962,7 @@ void createParticles_Blockdestroy(float3& place, int texture_id)
             place + make_float3(breakX, breakY, breakZ),
             make_float3(breakX * 10.f, breakY * 10.f, breakZ * 10.f),
             make_float3(randz, randz, randz),
-            sqrtf(2 * 40 * 10 * breakY),
+            0.7f,
             texture_id
         );
     }
@@ -2386,7 +2386,7 @@ void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& param
 void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state)
 {
     // Update params on device
-
+    std::cout << model_need_update <<" " << Particle::OBJ_COUNT << " "<<ptcList.size()<<std::endl;
     state.params.subframe_index = 0;
 
     handleCameraUpdate( state );
@@ -2589,7 +2589,7 @@ int main( int argc, char* argv[] )
         // Add basic models
         //
         for(int i=0; i<10; i++) {
-            for(int j=0; j<3; j++) {
+            for(int j=0; j<30; j++) {
                 modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, WOOD));
             }
         }
