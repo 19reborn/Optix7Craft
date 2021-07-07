@@ -47,6 +47,7 @@
 #include <sutil/vec_math.h>
 #include <sutil/stb_image.h>
 
+
 #include <GLFW/glfw3.h>
 // ImGui
 #include <imgui/imgui.h>
@@ -728,29 +729,25 @@ struct Creature : public Entity {
     float3 eye = make_float3(0.f, 1.3f, 0.f);
     float3 lookat = make_float3(0.f, 0.f, 0.f);
     float3 up = make_float3(0.f, 1.f, 0.f);
-    void dx(const float delta)
-    {
+    void dx(const float delta)  override{
         pos.x += delta;
         eye.x += delta;
         lookat.x += delta;
         box.center.x += delta;
     }
-    void dy(const float delta)
-    {
+    void dy(const float delta)  override{
         pos.y += delta;
         eye.y += delta;
         lookat.y += delta;
         box.center.y += delta;
     }
-    void dz(const float delta)
-    {
+    void dz(const float delta)  override{
         pos.z += delta;
         eye.z += delta;
         lookat.z += delta;
         box.center.z += delta;
     }
-    void dX(const float3& vec)
-    {
+    void dX(const float3& vec)  override{
         pos += vec;
         eye += vec;
         lookat += vec;
@@ -767,8 +764,7 @@ struct Particle : public Entity {
     float beginTime = 0.f;
     float lifeLength = 0.f;
     cModel* md = nullptr;
-    void dX(const float3& vec)
-    {
+    void dX(const float3& vec)  override{
         pos += vec;
         if (md != nullptr)
         {
@@ -1050,6 +1046,9 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_E) {
             modelLst[0]->move_delta(make_float3(0, 1, 0));
             model_need_update = true;
+        }
+        if (key == GLFW_KEY_T) {
+            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.5f);
         }
     }
     else if (action == GLFW_RELEASE)
