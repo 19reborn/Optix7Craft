@@ -26,13 +26,20 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include <vector_types.h>
-#include <optix_types.h>
-#include <sutil/vec_math.h>
 #include <cuda/GeometryData.h>
+
+#include <DemandLoading/DeviceContext.h>
+
+#include <vector_types.h>
+
+#include <sutil/vec_math.h>
 #include <sutil/Matrix.h>
 #include <sutil/sutilapi.h>
+
+#include <optix_types.h>
 #include <optix.h>
+
+
 #include "sunsky.hpp"
 
 enum RayType
@@ -77,6 +84,12 @@ struct Params
     float        scene_epsilon;
 
     OptixTraversableHandle handle;
+
+    // Texture data
+    float                        mipLevelBias;
+    demandLoading::DeviceContext demandTextureContext;
+    cudaMipmappedArray_t         nonDemandTextureArray;
+    cudaTextureObject_t          nonDemandTexture;
 };
 
 
@@ -176,6 +189,11 @@ struct CheckerPhong
 
 struct HitGroupData
 {
+    float        radius;
+    unsigned int demand_texture_id;
+    float        texture_scale;
+    float        texture_lod;
+
     union
     {
         GeometryData::Sphere sphere;
@@ -212,6 +230,15 @@ struct SunPRD {
     float3 radiance;
     float3 origin;
     float3 direction;
+
+    // Ray differential
+    float3 origin_dx;
+    float3 origin_dy;
+    float3 direction_dx;
+    float3 direction_dy;
+
+    // padding
+    int pad;
 };
 
 struct OcclusionPRD

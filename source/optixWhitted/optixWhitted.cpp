@@ -30,6 +30,12 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
+#include <DemandLoading/CheckerBoardImage.h>
+#include <DemandLoading/DemandLoader.h>
+#include <DemandLoading/DemandTexture.h>
+#include <DemandLoading/TextureDescriptor.h>
+#include <DemandLoading/ImageReader.h>
+
 #include <optix.h>
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
@@ -70,6 +76,8 @@ using std::string;
 using std::map;
 using std::unordered_map;
 
+using namespace demandLoading;
+
 //--------------------------------------------------------------------------- ---
 //
 // Globals
@@ -97,7 +105,12 @@ Creature* control = nullptr;//refer to the entity you are controlling.
 bool switchcam = true; //Whenever you wanna change printer control, give this bool a TRUE value
 
 
-
+// Texture 
+int g_textureWidth = 2048;
+int g_textureHeight = 2048;
+float texture_scale = 4.0f;
+float texture_lod = 0.0f;
+DemandTexture* texture;
 
 
 // Mouse state
@@ -149,6 +162,8 @@ struct WhittedState {
     OptixProgramGroup           occlusion_metal_sphere_prog_group = 0;
     OptixProgramGroup           radiance_metal_cube_prog_group = 0;
     OptixProgramGroup           occlusion_metal_cube_prog_group = 0;
+    OptixProgramGroup           radiance_texture_cube_prog_group = 0;
+    OptixProgramGroup           occlusion_texture_cube_prog_group = 0;
     OptixProgramGroup           radiance_floor_prog_group         = 0;
     OptixProgramGroup           occlusion_floor_prog_group        = 0;
 
@@ -161,6 +176,40 @@ struct WhittedState {
 
     OptixShaderBindingTable     sbt                       = {};
 };
+
+//------------------------------------------------------------------------------
+//
+//  Texture loading Functions
+//
+//------------------------------------------------------------------------------
+
+void getDevices(std::vector<unsigned int>& devices)
+{
+    int32_t deviceCount = 0;
+    CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
+    devices.resize(deviceCount);
+    std::cout << "Total GPUs visible: " << devices.size() << std::endl;
+    for (int32_t deviceIndex = 0; deviceIndex < deviceCount; ++deviceIndex)
+    {
+        cudaDeviceProp prop;
+        CUDA_CHECK(cudaGetDeviceProperties(&prop, deviceIndex));
+        devices[deviceIndex] = deviceIndex;
+        std::cout << "\t[" << devices[deviceIndex] << "]: " << prop.name << std::endl;
+    }
+}
+
+TextureDescriptor makeTextureDescription()
+{
+    TextureDescriptor texDesc{};
+    texDesc.addressMode[0] = CU_TR_ADDRESS_MODE_WRAP;
+    texDesc.addressMode[1] = CU_TR_ADDRESS_MODE_WRAP;
+    texDesc.filterMode = CU_TR_FILTER_MODE_LINEAR;
+    texDesc.mipmapFilterMode = CU_TR_FILTER_MODE_LINEAR;
+    texDesc.maxAnisotropy = 16;
+
+    return texDesc;
+}
+
 
 //------------------------------------------------------------------------------
 //
@@ -313,7 +362,8 @@ public:
     virtual string get_type() = 0;
     virtual void set_bound(float result[6]) = 0;
     virtual uint32_t get_input_flag() = 0;
-    virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) = 0;
+    virtual void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, 
+                        int idx, int texture_id) = 0;
     virtual float3 get_center() {return {0, 0, 0};}
     virtual float get_horizontal_size() = 0;
     CollideBox& get_collideBox() {return collideBox;}
@@ -408,7 +458,7 @@ public:
     uint32_t get_input_flag() override {
         return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
     }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx, int texture_id) override {
         OPTIX_CHECK( optixSbtRecordPackHeader(
                 state.radiance_metal_sphere_prog_group,
                 &hgr[idx] ) );
@@ -460,7 +510,7 @@ public:
     uint32_t get_input_flag() override {
         return OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL;
     }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx, int texture_id) override {
         OPTIX_CHECK( optixSbtRecordPackHeader(
                 state.radiance_glass_sphere_prog_group,
                 &hgr[idx] ) );
@@ -526,22 +576,47 @@ public:
     uint32_t get_input_flag() override {
         return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
     }
-    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
-        OPTIX_CHECK(optixSbtRecordPackHeader(
-            state.radiance_metal_cube_prog_group,
-            &hgr[idx]));
-        hgr[idx].data.geometry.cube = args;
-        hgr[idx].data.shading.metal = {
-                { 0.2f, 0.5f, 0.5f },   // Ka
-                { 0.2f, 0.7f, 0.8f },   // Kd
-                { 0.9f, 0.9f, 0.9f },   // Ks
-                { 0.5f, 0.5f, 0.5f },   // Kr
-                64,                     // phong_exp
-        };
-        OPTIX_CHECK(optixSbtRecordPackHeader(
-            state.occlusion_metal_cube_prog_group,
-            &hgr[idx + 1]));
-        hgr[idx + 1].data.geometry.cube = args;
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx, int texture_id) override {
+        if (texture_id == 0) {
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.radiance_metal_cube_prog_group,
+                &hgr[idx]));
+            hgr[idx].data.geometry.cube = args;
+            hgr[idx].data.shading.metal = {
+                    { 0.2f, 0.5f, 0.5f },   // Ka
+                    { 0.2f, 0.7f, 0.8f },   // Kd
+                    { 0.9f, 0.9f, 0.9f },   // Ks
+                    { 0.5f, 0.5f, 0.5f },   // Kr
+                    64,                     // phong_exp
+            };
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.occlusion_metal_cube_prog_group,
+                &hgr[idx + 1]));
+            hgr[idx + 1].data.geometry.cube = args;
+        }
+        else {
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.radiance_texture_cube_prog_group,
+                &hgr[idx]));
+            hgr[idx].data.geometry.cube = args;
+            /*
+            hgr[idx].data.shading.metal = {
+                    { 0.2f, 0.5f, 0.5f },   // Ka
+                    { 0.2f, 0.7f, 0.8f },   // Kd
+                    { 0.9f, 0.9f, 0.9f },   // Ks
+                    { 0.5f, 0.5f, 0.5f },   // Kr
+                    64,                     // phong_exp
+            };
+            */
+            hgr[idx].data.radius = 1.5f;
+            hgr[idx].data.demand_texture_id = texture->getId();
+            hgr[idx].data.texture_scale = texture_scale;
+            hgr[idx].data.texture_lod = texture_lod;
+            OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.occlusion_texture_cube_prog_group,
+                &hgr[idx + 1]));
+            hgr[idx + 1].data.geometry.cube = args;
+        }
     }
     float3 get_center() override {
         return args.center;
@@ -807,7 +882,6 @@ static void scrollCallback( GLFWwindow* window, double xscroll, double yscroll )
     {
     }
 }
-
 
 //------------------------------------------------------------------------------
 //
@@ -1295,6 +1369,57 @@ static void createMetalCubeProgram(WhittedState& state, std::vector<OptixProgram
     state.occlusion_metal_cube_prog_group = occlusion_cube_prog_group;
 }
 
+static void createTextureCubeProgram(WhittedState& state, std::vector<OptixProgramGroup>& program_groups)
+{
+    OptixProgramGroup           radiance_cube_prog_group;
+    OptixProgramGroupOptions    radiance_cube_prog_group_options = {};
+    OptixProgramGroupDesc       radiance_cube_prog_group_desc = {};
+    radiance_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+        radiance_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    radiance_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__texture_radiance";
+    radiance_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    char    log[2048];
+    size_t  sizeof_log = sizeof(log);
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &radiance_cube_prog_group_desc,
+        1,
+        &radiance_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &radiance_cube_prog_group));
+
+    program_groups.push_back(radiance_cube_prog_group);
+    state.radiance_texture_cube_prog_group = radiance_cube_prog_group;
+
+    OptixProgramGroup           occlusion_cube_prog_group;
+    OptixProgramGroupOptions    occlusion_cube_prog_group_options = {};
+    OptixProgramGroupDesc       occlusion_cube_prog_group_desc = {};
+    occlusion_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+        occlusion_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    occlusion_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__full_occlusion";
+    occlusion_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &occlusion_cube_prog_group_desc,
+        1,
+        &occlusion_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &occlusion_cube_prog_group));
+
+    program_groups.push_back(occlusion_cube_prog_group);
+    state.occlusion_texture_cube_prog_group = occlusion_cube_prog_group;
+}
+
 static void createFloorProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
 {
     OptixProgramGroup           radiance_floor_prog_group;
@@ -1459,7 +1584,7 @@ void syncCameraDataToSbt( WhittedState &state, const CameraData& camData )
     ) );
 }
 
-void createSBT( WhittedState &state )
+void createSBT( WhittedState &state)
 {
     // Raygen program record
     {
@@ -1504,7 +1629,7 @@ void createSBT( WhittedState &state )
 
         // Note: Fill SBT record array the same order like AS is built.
         for(int i=0; i<count_records; i+=2) {
-            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i);
+            modelLst[i/2]->set_hitgroup(state, hitgroup_records, i, 0);
         }
 
         CUdeviceptr d_hitgroup_records;
@@ -1921,6 +2046,11 @@ int main( int argc, char* argv[] )
     sun.color = sky.sunColor() * sqrt_sun_scale * sqrt_sun_scale;
     sun.casts_shadow = 1;
 
+    float textureScale = 4.0f;
+
+    // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
+    // Licensed under the Creative Commons CC0 License.
+    std::string textureFile = "Textures/Wood049_1K_Color.jpg";  // use --texture "" for procedural texture
 
     //
     // Parse command line options
@@ -1981,9 +2111,25 @@ int main( int argc, char* argv[] )
         // Set up OptiX state
         //
         createContext  ( state );
+
+        std::vector<unsigned int> availableDevices;
+        getDevices(availableDevices);
+        demandLoading::Options options{};
+        options.maxThreads = 0 ;  // maximum threads to use when processing page requests
+
+        std::unique_ptr<ImageReader> imageReader;
+        std::shared_ptr<DemandLoader> demandLoader(createDemandLoader(availableDevices, options), destroyDemandLoader);
+
+        const int  squaresPerSide = 32;
+        const bool useMipmaps = true;
+        imageReader = std::unique_ptr<ImageReader>(
+            new CheckerBoardImage(g_textureWidth, g_textureHeight, squaresPerSide, useMipmaps));
+        TextureDescriptor    texDesc = makeTextureDescription();
+        *texture = demandLoader->createTexture(std::move(imageReader), texDesc);
+
         createGeometry  ( state );
         createPipeline ( state );
-        createSBT      ( state );
+        createSBT      ( state);
 
         initLaunchParams( state );
 

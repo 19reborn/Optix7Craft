@@ -27,11 +27,19 @@
 //
 
 #include <vector_types.h>
+
 #include <optix_device.h>
+
+#include <DemandLoading/DeviceContext.h>
+#include <DemandLoading/Texture2D.h>
 
 #include "optixWhitted.h"
 #include "helpers.h"
 #include "random.h"
+
+#ifndef M_PI_4f
+#define M_PI_4f     0.785398163397448309616f
+#endif
 
 __inline__ __device__ float3 tonemap(const float3 in)
 {
@@ -46,9 +54,37 @@ __inline__ __device__ float3 tonemap(const float3 in)
     return ret;
 }
 
-#ifndef M_PI_4f
-#define M_PI_4f     0.785398163397448309616f
-#endif
+// Compute texture derivatives in texture space from texture derivatives in world space and  ray differentials.
+inline __device__ void computeTextureDerivatives(float2& dpdx,  // texture derivative in x (out)
+    float2& dpdy,  // texture derivative in y (out)
+    const float3& dPds,  // world space texture derivative
+    const float3& dPdt,  // world space texture derivative
+    float3        rdx,   // ray differential in x
+    float3        rdy,   // ray differential in y
+    const float3& normal,
+    const float3& rayDir)
+{
+    // Compute scale factor to project differentials onto surface plane
+    float s = dot(rayDir, normal);
+
+    // Clamp s to keep ray differentials from blowing up at grazing angles. Prevents overblurring.
+    const float sclamp = 0.1f;
+    if (s >= 0.0f && s < sclamp)
+        s = sclamp;
+    if (s < 0.0f && s > -sclamp)
+        s = -sclamp;
+
+    // Project the ray differentials to the surface plane.
+    float tx = dot(rdx, normal) / s;
+    float ty = dot(rdy, normal) / s;
+    rdx -= tx * rayDir;
+    rdy -= ty * rayDir;
+
+    // Compute the texture derivatives in texture space. These are calculated as the
+    // dot products of the projected ray differentials with the texture derivatives.
+    dpdx = make_float2(dot(dPds, rdx), dot(dPdt, rdx));
+    dpdy = make_float2(dot(dPds, rdy), dot(dPdt, rdy));
+}
 
 extern "C" {
 __constant__ Params params;
@@ -617,6 +653,67 @@ extern "C" __global__ void __anyhit__glass_occlusion()
         // (along with other glass shells) is then used.
         optixIgnoreIntersection();
 }
+
+extern "C" __global__ void __closesthit__texutre_radiance()
+{
+    // The demand-loaded texture id is provided in the hit group data.
+    HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+    unsigned int  textureId = hg_data->demand_texture_id;
+    const float   textureScale = hg_data->texture_scale;
+    const float   radius = hg_data->radius;
+
+    // The texture coordinates and normal are calculated by the intersection shader are provided as attributes.
+    const float3 texcoord = make_float3(int_as_float(optixGetAttribute_0()), int_as_float(optixGetAttribute_1()),
+        int_as_float(optixGetAttribute_2()));
+
+    const float3 N = make_float3(int_as_float(optixGetAttribute_3()), int_as_float(optixGetAttribute_4()),
+        int_as_float(optixGetAttribute_5()));
+
+    // Compute world space texture derivatives based on normal and radius, assuming a lat/long projection
+    float3 dPds = radius * 2.0f * M_PIf * make_float3(N.y, -N.x, 0.0f);
+    dPds /= dot(dPds, dPds);
+
+    float3 dPdt = radius * M_PIf * normalize(cross(N, dPds));
+    dPdt /= dot(dPdt, dPdt);
+
+    // Compute final texture coordinates
+    float s = texcoord.x * textureScale - 0.5f * (textureScale - 1.0f);
+    float t = (1.0f - texcoord.y) * textureScale - 0.5f * (textureScale - 1.0f);
+
+    // Get the ray direction and hit distance
+    SunPRD* sun_prd = getPRD<SunPRD>();
+    const float3 rayDir = optixGetWorldRayDirection();
+    const float  thit = optixGetRayTmax();
+
+    // Compute the ray differential values at the intersection point
+    float3 rdx = sun_prd->origin_dx + thit * sun_prd->direction_dx;
+    float3 rdy = sun_prd->origin_dy + thit * sun_prd->direction_dy;
+
+    // Get texture space texture derivatives based on ray differentials
+    float2 ddx, ddy;
+    computeTextureDerivatives(ddx, ddy, dPds, dPdt, rdx, rdy, N, rayDir);
+
+    // Scale the texture derivatives based on the texture scale (how many times the
+    // texture wraps around the sphere) and the mip bias
+    float biasScale = exp2f(params.mipLevelBias);
+    ddx *= textureScale * biasScale;
+    ddy *= textureScale * biasScale;
+
+    // Sample the texture
+    const bool requestIfResident = true;
+    bool       isResident = true;
+
+    float4 color = tex2DGrad<float4>(
+        params.demandTextureContext, textureId, s, t, ddx, ddy, &isResident, requestIfResident);
+
+    sun_prd->radiance = make_float3(color);
+    unsigned int u0, u1;
+    packPointer(&sun_prd, u0, u1);
+    optixSetPayload_0(u0);
+    optixSetPayload_1(u1);
+
+}
+
 
 extern "C" __global__ void __miss__constant_bg()
 {
