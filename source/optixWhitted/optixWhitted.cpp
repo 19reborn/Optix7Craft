@@ -45,6 +45,7 @@
 #include <sutil/Matrix.h>
 #include <sutil/sutil.h>
 #include <sutil/vec_math.h>
+#define STB_IMAGE_IMPLEMENTATION
 #include <sutil/stb_image.h>
 
 #include <GLFW/glfw3.h>
@@ -183,7 +184,8 @@ bool first_launch = true;
 
 
 
-void load_texture(const std::string& file_name, const std::string & name) {
+void load_texture(std::string file_name, const std::string & name) {
+    //std::string textureFilename(sutil::sampleDataFilePath(file_name.c_str()));
     int2 res;
     int   comp;
     unsigned char* image = stbi_load(file_name.c_str(),
@@ -618,7 +620,7 @@ public:
                 &hgr[idx + 1]));
             hgr[idx + 1].data.geometry.cube = args;
         }
-        else if (texture_id = WOOD) {
+        else if (texture_id == WOOD) {
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_texture_cube_prog_group,
                 &hgr[idx]));
@@ -631,10 +633,10 @@ public:
                     { 0.5f, 0.5f, 0.5f },   // Kr
                     64,                     // phong_exp
             };
-            hgr[idx].data.has_diffuse = TRUE;
+            hgr[idx].data.has_diffuse = true;
             hgr[idx].data.diffuse_map = textures["wood_diffuse"];
-            //hgr[idx].data.has_normal = TRUE;
-            //hgr[idx].data.normal_map = textures["wood_normal"];
+            hgr[idx].data.has_normal = false;
+            hgr[idx].data.normal_map = textures["wood_normal"];
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.occlusion_texture_cube_prog_group,
                 &hgr[idx + 1]));
@@ -2331,8 +2333,8 @@ int main( int argc, char* argv[] )
 
     // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
     // Licensed under the Creative Commons CC0 License.
-    load_texture("Textures/Wood049_1K_Color.jpg","wood_diffuse");
-    load_texture("Textures/Wood049_1K_Normal.jpg", "wood_normal");
+    load_texture("D:/git/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Color.jpg","wood_diffuse");
+    load_texture("D:/git/Ray-Tracing-Project/source/data/Textures/Wood049_1K_Normal.jpg", "wood_normal");
 
     //
     // Parse command line options

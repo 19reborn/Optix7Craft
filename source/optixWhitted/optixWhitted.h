@@ -205,7 +205,6 @@ struct HitGroupData
         Phong           metal;
         Glass           glass;
         CheckerPhong    checker;
-        Texture         texture;
     } shading;    
 
     bool  has_diffuse;
@@ -235,14 +234,6 @@ struct SunPRD {
     float3 origin;
     float3 direction;
 
-    // Ray differential
-    float3 origin_dx;
-    float3 origin_dy;
-    float3 direction_dx;
-    float3 direction_dy;
-
-    // padding
-    int pad;
 };
 
 struct OcclusionPRD
@@ -256,6 +247,6 @@ struct texture_map {
         if (pixel) delete[] pixel;
     }
 
-    uint32_t* pixel{ nullptr };
+    unsigned int * pixel{ nullptr };
     int2     resolution{ -1 };
 };

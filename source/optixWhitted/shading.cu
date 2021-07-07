@@ -29,8 +29,6 @@
 #include <vector_types.h>
 
 #include <optix_device.h>
-#include <optix.h>
-#include <optix_stubs.h>
 
 #include <cuda_runtime.h>
 
@@ -264,6 +262,7 @@ __device__ void phongShade( float3 p_Kd,
     const float3 ray_dir  = optixGetWorldRayDirection();
     const float  ray_t    = optixGetRayTmax();
 
+    RadiancePRD prd = getRadiancePRD();
 
     float3 hit_point = ray_orig + ray_t * ray_dir;
 
@@ -655,10 +654,11 @@ extern "C" __global__ void __anyhit__glass_occlusion()
         optixIgnoreIntersection();
 }
 
+
 extern "C" __global__ void __closesthit__texture_radiance()
 {
     const HitGroupData* sbt_data = (HitGroupData*)optixGetSbtDataPointer();
-    const Phong phong = sbt_data->shading.texture;
+    Phong phong = sbt_data->shading.metal;
 
     float3 object_normal = make_float3(
         int_as_float(optixGetAttribute_0()),
@@ -669,13 +669,14 @@ extern "C" __global__ void __closesthit__texture_radiance()
     float2 coord = make_float2(
         int_as_float(optixGetAttribute_3()),
         int_as_float(optixGetAttribute_4()));
-
-    if (sbt_data->normal_map) {
+    
+    if (sbt_data->has_normal) {
         object_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y));
     }
-    if (sbt_data->diffuse_map) {
+    if (sbt_data->has_diffuse) {
         phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map, coord.x, coord.y));
     }
+    
     float3 world_normal = normalize(optixTransformNormalFromObjectToWorldSpace(object_normal));
     float3 ffnormal = faceforward(world_normal, -optixGetWorldRayDirection(), world_normal);
 
