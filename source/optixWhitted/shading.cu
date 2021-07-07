@@ -160,8 +160,6 @@ static __device__ __inline__ void setRadiancePRD( const RadiancePRD &prd )
     optixSetPayload_4( prd.depth );
 }
 
-
-
 static __device__ __inline__ OcclusionPRD getOcclusionPRD()
 {
     OcclusionPRD prd;
@@ -262,13 +260,13 @@ __device__ void phongShade( float3 p_Kd,
     const float3 ray_dir  = optixGetWorldRayDirection();
     const float  ray_t    = optixGetRayTmax();
 
-    RadiancePRD prd = getRadiancePRD();
+    SunPRD* sun_prd = getPRD<SunPRD>();
 
     float3 hit_point = ray_orig + ray_t * ray_dir;
 
     // ambient contribution
     float3 result = p_Ka * params.ambient_light_color;
-    /*
+    
     // compute direct lighting
     BasicLight light = params.light;
     float Ldist = length(light.pos - hit_point);
@@ -319,8 +317,8 @@ __device__ void phongShade( float3 p_Kd,
     {
 
         // ray tree attenuation
-        float new_importance = prd.importance * luminance( p_Kr );
-        int new_depth = prd.depth + 1;
+        float new_importance = sun_prd->importance * luminance( p_Kr );
+        int new_depth = sun_prd->depth + 1;
 
         // reflection ray
         // compare new_depth to max_depth - 1 to leave room for a potential shadow ray trace
@@ -328,17 +326,12 @@ __device__ void phongShade( float3 p_Kd,
         {
             float3 R = reflect( ray_dir, p_normal );
 
-            result += p_Kr * traceRadianceRay(
-                hit_point,
-                R,
-                new_depth,
-                new_importance);
+            result += p_Kr * traceSun(hit_point, R, new_depth, new_importance);
         }
     }
-    prd.result = result;
-    setRadiancePRD(prd);
-   */
-   
+
+    sun_prd->attenuation = make_float3(1.0f);
+   /*
     //sun light
     DirectionalLight sun = params.sun;
     SunPRD *sun_prd = getPRD<SunPRD>();
@@ -354,7 +347,7 @@ __device__ void phongShade( float3 p_Kd,
     sun_prd->origin = hit_point;
     sun_prd->direction = w_in;
     
-    sun_prd->attenuation *= p_Kd * make_float3({ 1.0f });
+    sun_prd->attenuation *= p_Kd * make_float3(1.0f);
 
     // Add direct light sample weighted by shadow term and 1/probability.
     // The pdf for a directional area light is 1/solid_angle.
@@ -420,7 +413,7 @@ __device__ void phongShade( float3 p_Kd,
         }
     }
 
-
+    */
     sun_prd->radiance = result;
     unsigned int u0, u1;
     packPointer(&sun_prd, u0, u1);
