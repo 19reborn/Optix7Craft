@@ -714,7 +714,6 @@ extern "C" __global__ void __closesthit__texture_radiance()
 
 }
 
-
 extern "C" __global__ void __miss__constant_bg()
 {
     const MissData* sbt_data = (MissData*) optixGetSbtDataPointer();

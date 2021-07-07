@@ -605,6 +605,7 @@ public:
                 &hgr[idx + 1]));
             hgr[idx + 1].data.geometry.cube = args;
         }
+        
         else {
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_texture_cube_prog_group,
@@ -628,6 +629,7 @@ public:
                 &hgr[idx + 1]));
             hgr[idx + 1].data.geometry.cube = args;
         }
+        
     }
     float3 get_center() override {
         return args.center;
@@ -2159,7 +2161,7 @@ int main( int argc, char* argv[] )
         // Set up OptiX state
         //
         createContext  ( state );
-      
+       
         std::vector<unsigned int> availableDevices;
         getDevices(availableDevices);
         demandLoading::Options options{};
@@ -2174,7 +2176,7 @@ int main( int argc, char* argv[] )
             new CheckerBoardImage(g_textureWidth, g_textureHeight, squaresPerSide, useMipmaps));
         TextureDescriptor    texDesc = makeTextureDescription();
         *texture = demandLoader->createTexture(std::move(imageReader), texDesc);
-
+        
         createGeometry  ( state );
         createPipeline ( state );
         createSBT      ( state);

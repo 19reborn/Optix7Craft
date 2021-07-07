@@ -85,7 +85,7 @@ struct Params
 
     OptixTraversableHandle handle;
 
-    // Texture data
+     Texture data
     float                        mipLevelBias;
     demandLoading::DeviceContext demandTextureContext;
     cudaMipmappedArray_t         nonDemandTextureArray;
@@ -189,10 +189,7 @@ struct CheckerPhong
 
 struct HitGroupData
 {
-    float        radius;
-    unsigned int demand_texture_id;
-    float        texture_scale;
-    float        texture_lod;
+
 
     union
     {
@@ -207,7 +204,12 @@ struct HitGroupData
         Phong           metal;
         Glass           glass;
         CheckerPhong    checker;
-    } shading;
+    } shading;    
+  
+    float        radius;
+    unsigned int demand_texture_id;
+    float        texture_scale;
+    float        texture_lod;
 };
 
 
