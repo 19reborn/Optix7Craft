@@ -58,7 +58,6 @@
 #include <cstring>
 
 #include "collideBox.h"
-#include "entity.h"
 #include "optixWhitted.h"
 
 #include <vector>
@@ -93,9 +92,6 @@ bool sprint = false;
 float camera_speed = 1.5f;
 sutil::Camera     camera;
 sutil::Trackball  trackball;
-std::vector<Creature*> crtList;//Entity list, the entList[0] is our player.
-Creature* player = nullptr;//refer to entList[0]. Binding process located in void initEntitySystem()
-Creature* control = nullptr;//refer to the entity you are controlling.
 bool switchcam = true; //Whenever you wanna change printer control, give this bool a TRUE value
 
 
@@ -687,6 +683,174 @@ bool get_model_at(float3 pos, cModel*& pmodel) {
 
     return false;
 }
+
+
+// --------------------------------------------- Entity System ---------------------------------------------
+
+enum { ENTITY_CREATURE, ENTITY_PARTICLE, ENTITY_OBJECT, ENTITY_ARROW };
+class Entity {
+public:
+    float3 pos = make_float3(1.f, 0.f, 1.f);
+    float3 acceleration = make_float3(0.f, 0.f, 0.f);
+    float3 velocity = make_float3(0.f, 0.f, 0.f);
+    bool isOnGround = true;
+    bool isFlying = false;
+    CollideBox box = CollideBox(make_float3(0, 0, 0), make_float3(0, 0, 0));
+    virtual void dx(const float delta) { pos.x += delta; box.center.x += delta; }
+    virtual void dy(const float delta) { pos.y += delta; box.center.y += delta; }
+    virtual void dz(const float delta) { pos.z += delta; box.center.z += delta; }
+    virtual void dX(const float3& vec) { pos += vec; box.center += vec; }
+    virtual void dv(const float3& vec) { velocity += vec; }
+    virtual void da(const float3& vec) { acceleration += vec; }
+    virtual CollideBox& get_collideBox() { return box; }
+    virtual bool collide(const CollideBox& cbox)
+    {
+        if (CollideBox::collide_check(box, cbox))
+        {
+            return true;
+        }
+        return false;
+    }
+    virtual bool collide_atEntity(Entity*& ent)
+    {
+        if (CollideBox::collide_check(box, ent->get_collideBox()))
+        {
+            return true;
+        }
+        return false;
+    }
+
+
+};
+
+struct Creature : public Entity {
+    int type = ENTITY_CREATURE;
+    float3 eye = make_float3(0.f, 1.3f, 0.f);
+    float3 lookat = make_float3(0.f, 0.f, 0.f);
+    float3 up = make_float3(0.f, 1.f, 0.f);
+    void dx(const float delta)
+    {
+        pos.x += delta;
+        eye.x += delta;
+        lookat.x += delta;
+        box.center.x += delta;
+    }
+    void dy(const float delta)
+    {
+        pos.y += delta;
+        eye.y += delta;
+        lookat.y += delta;
+        box.center.y += delta;
+    }
+    void dz(const float delta)
+    {
+        pos.z += delta;
+        eye.z += delta;
+        lookat.z += delta;
+        box.center.z += delta;
+    }
+    void dX(const float3& vec)
+    {
+        pos += vec;
+        eye += vec;
+        lookat += vec;
+        box.center += vec;
+    }
+    //@@todo: link with collidebox
+};
+std::vector<Creature*> crtList;//Creature list, the crtList[0] is our player.
+Creature* player = nullptr;//refer to crtList[0]. Binding process located in void initEntitySystem()
+Creature* control = nullptr;//refer to the creature you are controlling.
+
+struct Particle : public Entity {
+    int type = ENTITY_PARTICLE;
+    float beginTime = 0.f;
+    float lifeLength = 0.f;
+    cModel* md = nullptr;
+    void dX(const float3& vec)
+    {
+        pos += vec;
+        if (md != nullptr)
+        {
+            md->move_delta(vec);
+            model_need_update = true;
+        }
+    }
+
+};
+std::vector<Particle*> ptcList;
+
+void createParticle(float3& pos, float3& acceleration, float3& size, float timePtc)//请不要单独使用这个函数！！！ Please do not use this function isolatedly for this function wouldn't renew model_need_update = true;
+{
+    Particle* tmp = new Particle;
+    if (tmp != nullptr)
+    {
+        tmp->pos = pos;
+        tmp->acceleration = acceleration;
+        tmp->velocity = make_float3(0.f, 0.f, 0.f);
+        tmp->beginTime = glfwGetTime();
+        tmp->lifeLength = timePtc;
+        tmp->md = new cCube(pos, size);
+        //此处插入对cCube的调整，使得他更像粒子（比如改成灰色）
+        if (tmp->md != nullptr)  modelLst.push_back(tmp->md);//@@todo: 这一行可以不要的，但是如果不要的话就得单独做渲染，size也得和OBJ脱钩，有点麻烦，总之我先这样封装着
+        else throw sutil::Exception("Generating Particle Fault: gain nullptr when modeling.");
+        ptcList.push_back(tmp);
+    }
+    else {
+        throw sutil::Exception("Generating Particle Fault: gain nullptr when particling.");
+    }
+}//
+void eraseParticle(Particle* pPar)
+{
+    if (pPar == nullptr) return;
+    for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end(); ++it)
+    {
+        if (*it == pPar->md)
+        {
+            delete* it; // 删除这个粒子的模型
+            model_need_update = true;
+            it = modelLst.erase(it);
+            break;  //干掉
+        }
+    }//此时已经完成了md的释放，之后只用释放掉pPar就行了
+
+    for (vector<Particle*>::iterator it = ptcList.begin(); it != ptcList.end(); ++it)
+    {
+        if (*it == pPar)
+        {
+            delete* it; // 删除这个粒子
+            it = ptcList.erase(it);
+            break;  //干掉
+        }
+    }
+}
+void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize)
+{
+    while (number--)
+    {
+        float theta = fmod(rand(), 2 * M_PI);
+        float radiu = fmod(rand(), r);
+        float randz = maxSize;//fmod(rand(), maxSize);
+        createParticle(
+            place + make_float3(radiu * cos(theta), 0.f, radiu * sin(theta)),
+            make_float3(radiu * cos(theta) * powerxz, powery, radiu * sin(theta) * powerxz),
+            make_float3(randz, randz, randz),
+            5.f
+        );
+    }
+    model_need_update = true;
+}
+
+
+// --------------------------------------------- Entity System ---------------------------------------------
+
+
+
+
+
+
+
+
 
 //------------------------------------------------------------------------------
 //
@@ -1818,7 +1982,50 @@ void initCameraState()
     trackball.setReferenceFrame( make_float3( 1.0f, 0.0f, 0.0f ), make_float3( 0.0f, 0.0f, 1.0f ), make_float3( 0.0f, 1.0f, 0.0f ) );
     trackball.setGimbalLock(true);
 }
+void recycleParticles()//只在程序结束时使用 only used when program is end. 
+{
+    for (auto& ptc : ptcList)
+    {
 
+    }
+}//个屁，让它自己干吧。
+void updateParticle(float dt)//the motion of particles in dt time
+{
+    float nowTime = glfwGetTime();/////
+    if (!ptcList.empty())
+    {
+        model_need_update = true;
+    }
+    for (vector<Particle*>::iterator it = ptcList.begin(); it != ptcList.end();)
+    {
+        Particle* ptc = *it;
+        if (nowTime - ptc->beginTime >= ptc->lifeLength)//进入删除操作
+        {
+            //首先从modelLst移除ptc->md
+            for (vector<cModel*>::iterator itmd = modelLst.begin(); itmd != modelLst.end(); ++itmd)
+            {
+                if (*itmd == ptc->md)
+                {
+                    delete* itmd; // 删除这个粒子的模型
+                    itmd = modelLst.erase(itmd);
+                    break;  //删完了
+                }
+            }
+            //此时已经完成了md的释放，之后只用释放掉ptc就行了
+            delete* it;
+            it = ptcList.erase(it);
+            continue;
+        }
+        //否则开始处理物理项
+        ptc->velocity += ptc->acceleration;
+        ptc->velocity = ptc->velocity + make_float3(0.f, -40.f * dt, 0.f); //粒子不会飞行，也不会受到碰撞，一定会受到重力加速度影响
+        ptc->acceleration = make_float3(0.f, 0.f, 0.f);
+        ptc->dX(ptc->velocity);
+        ptc->velocity.x *= 0.85f;
+        ptc->velocity.z *= 0.85f;
+        it++;
+    }
+}
 void updateCreature(float dt)//the motion of entities in dt time
 {
     if (!switchcam)
@@ -2236,7 +2443,9 @@ int main( int argc, char* argv[] )
                     auto t0 = std::chrono::steady_clock::now();
                     glfwPollEvents();
 
+
                     updateControl(deltatime);
+                    updateParticle(deltatime);
                     updateCreature(deltatime);
                     updateState( output_buffer, state);
 
