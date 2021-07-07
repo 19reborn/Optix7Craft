@@ -2151,7 +2151,7 @@ void initCreature()
     Creature* enttmp = new Creature;
     crtList.push_back(enttmp);
     control = player = (Creature*)crtList[0];
-    player->pos = make_float3(3.0f, 3.0f, 3.0f);
+    player->pos = make_float3(8.0f, 0.7f, -4.0f);
     player->eye = make_float3(8.0f, 2.0f, -4.0f);
     player->lookat = make_float3(4.0f, 2.3f, -4.0f);
     player->up = make_float3(0.0f, 1.0f, 0.0f);
@@ -2211,7 +2211,6 @@ void updateParticle(float dt)//the motion of particles in dt time
             
         }
     }
-    std::cout << Particle::OBJ_COUNT <<" "<< ptcList.size()<<std::endl;
     
 }
 void updateCreature(float dt)//the motion of entities in dt time
