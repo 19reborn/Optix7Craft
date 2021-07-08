@@ -111,6 +111,9 @@ const int         max_trace = 10;
 // Model state
 bool              model_need_update = false;
 
+
+//Particles settings
+bool              isParticle = false;
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -900,7 +903,7 @@ uint32_t Particle::OBJ_COUNT = 0;
 std::vector<Particle*> ptcList;
 
 
-void createParticle(float3& pos, float3& acceleration, float3& size, float timePtc)
+void createParticle(float3& pos, float3& acceleration, float3& size, float timePtc, int texture_id)
 {
     Particle* tmp = new Particle;
     if (tmp != nullptr)
@@ -911,8 +914,7 @@ void createParticle(float3& pos, float3& acceleration, float3& size, float timeP
         tmp->beginTime = glfwGetTime();
         tmp->lifeLength = timePtc;
         tmp->args.center = pos; tmp->args.size = size;
-        
-        tmp->texture_id = WOOD;//重要调整！！
+        tmp->texture_id = texture_id;//重要调整！！
         ptcList.push_back(tmp);
     }
     else {
@@ -937,7 +939,6 @@ void eraseParticle(Particle* pPar)
 unsigned int jiangzemin = 19260817;
 void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize)
 {
-    std::cout << "number=" << number << std::endl;
     while (number--)
     {
         float theta = fmod(rnd(jiangzemin), 2 * M_PI);
@@ -947,12 +948,30 @@ void createParticles_planeBounce(float3& place, float powery, float powerxz, flo
             place + make_float3(radiu * cos(theta), 0.f, radiu * sin(theta)),
             make_float3(radiu * cos(theta) * powerxz, powery, radiu * sin(theta) * powerxz),
             make_float3(randz, randz, randz),
-            2.f
+            0.5f,
+            NONE
         );
     }
 }
 
-
+void createParticles_Blockdestroy(float3& place, int texture_id)
+{
+    int number = 5 + rand() % 7;
+    while (number--)
+    {
+        float breakX = fmod(rnd(jiangzemin), 1.f) - 0.5f;
+        float breakY = fmod(rnd(jiangzemin), 1.f) - 0.5f;
+        float breakZ = fmod(rnd(jiangzemin), 1.f) - 0.5f;
+        float randz = 0.05f + fmod(rnd(jiangzemin), 0.07f);
+        createParticle(
+            place + make_float3(breakX, breakY, breakZ),
+            make_float3(breakX * 10.f, breakY * 10.f, breakZ * 10.f),
+            make_float3(randz, randz, randz),
+            0.5f,
+            NONE
+        );
+    }
+}
 // --------------------------------------------- Entity System ---------------------------------------------
 
 
@@ -1035,12 +1054,13 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
         {
             if (istargeted)
             {
+                if(isParticle) createParticles_Blockdestroy(intersectBlock->get_center(), intersectBlock->texture_id);
                 for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end(); ++it)
                 {
                     if (*it == intersectBlock)
                     {
                         delete *it; // 删除这个方块
-                        modelLst.erase(it);
+                        it = modelLst.erase(it);
                         break;  // 我们顶多只有一个这个方块
                     }
                 }
@@ -2640,12 +2660,12 @@ int main( int argc, char* argv[] )
                     auto t0 = std::chrono::steady_clock::now();
                     glfwPollEvents();
 
-
+                    
                     updateControl(deltatime);
                     updateParticle(deltatime);
                     updateCreature(deltatime);
                     updateState( output_buffer, state);
-
+                    
                     updateInteration(); // 更新一下给予互动的变量
 
                     auto t1 = std::chrono::steady_clock::now();
@@ -2661,6 +2681,7 @@ int main( int argc, char* argv[] )
                     t1 = std::chrono::steady_clock::now();
                     display_time += t1 - t0;
 
+                    
                     displayHUD(state.params.width, state.params.height);
                     sutil::displayStats( state_update_time, render_time, display_time );
 
