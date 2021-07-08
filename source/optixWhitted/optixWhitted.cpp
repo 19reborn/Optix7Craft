@@ -945,7 +945,7 @@ void createParticles_Blockdestroy(float3& place, int texture_id)
             make_float3(breakX * 10.f, breakY * 10.f, breakZ * 10.f),
             make_float3(randz, randz, randz),
             0.5f,
-            NONE
+            texture_id
         );
     }
 }
