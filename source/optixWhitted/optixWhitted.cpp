@@ -320,6 +320,7 @@ enum ModelTexture { // 记得也填get_texture_name
     PLANK,
     BRICK,
     DIRT,
+    GRASS,
     IRON,
     MT_SIZE // 请确保这个出现在最后一个
 };
@@ -331,6 +332,7 @@ string get_texture_name(ModelTexture tex_id) {
         case PLANK: return "PLANK";
         case BRICK: return "BRICK";
         case DIRT: return "DIRT";
+        case GRASS: return "GRASS";
         case IRON: return "IRON";
         default: return "ERROR";
     }
@@ -478,7 +480,15 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         hgr[idx].data.diffuse_map_z_up = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
         hgr[idx].data.diffuse_map_z_down = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
 
-        if(texture_id == IRON) {
+        if(texture_id == GRASS) {   // 草方块只有y_up是草，其他都是DIRT
+            hgr[idx].data.diffuse_map_y_down = texture_list[textures[ get_texture_name(DIRT) + "_diffuse" ]]->textureObject;
+            hgr[idx].data.diffuse_map_x_up = texture_list[textures[ "GRASS_side_diffuse" ]]->textureObject;
+            hgr[idx].data.diffuse_map_x_down = texture_list[textures[ "GRASS_side_diffuse"]]->textureObject;
+            hgr[idx].data.diffuse_map_z_up = texture_list[textures[ "GRASS_side_diffuse" ]]->textureObject;
+            hgr[idx].data.diffuse_map_z_down = texture_list[textures[ "GRASS_side_diffuse" ]]->textureObject;
+        }
+
+        if(texture_id == IRON || texture_id == GRASS) {
             hgr[idx].data.has_normal = false;
         } else {
             hgr[idx].data.has_normal = true;
@@ -2563,7 +2573,9 @@ int main( int argc, char* argv[] )
     load_texture_integrated("Wood049", WOOD);
     load_texture_integrated("Planks021", PLANK);
     load_texture_integrated("Bricks059", BRICK);
-    load_texture_integrated("Ground037", DIRT);
+    load_texture_integrated("Ground048", DIRT);
+    load_texture_integrated("Ground037", GRASS);
+    load_texture("Ground786.jpg", "GRASS_side_diffuse");
     load_texture_integrated("Metal003", IRON);
     //
     // Parse command line options
@@ -2609,7 +2621,7 @@ int main( int argc, char* argv[] )
         //
         for(int i=0; i<10; i++) {
             for(int j=0; j<10; j++) {
-                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, DIRT));
+                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, GRASS));
             }
         }
         modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
