@@ -124,6 +124,12 @@ struct Cube
     float3 	size;
 };
 
+struct CubeShell {
+    float3  center;
+    float3  size1;
+    float3  size2;
+};
+
 
 struct Parallelogram
 {

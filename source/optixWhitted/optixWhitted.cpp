@@ -757,6 +757,59 @@ public:
     }
 };
 
+class cCubeShell : public cModel {
+public:
+    CubeShell args;
+
+    cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id=NONE):
+        cModel(CollideBox(c, {s2, s2, s2}), tex_id) {
+        args.center = c;
+        args.size1 = {s1, s1, s1};
+        args.size2 = {s2, s2, s2};
+        collidable = true;
+    }
+
+    cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id): 
+        cModel(CollideBox(c, s2), tex_id) {
+        args.center = c;
+        args.size1 = s1;
+        args.size2 = s2;
+        collidable = true;
+    }
+
+    string get_type() { return "CubeShell"; }
+    void set_bound(float result[6]) override {
+        auto* aabb = reinterpret_cast<OptixAabb*>(result);
+
+        float3 m_min = args.center - args.size2;
+        float3 m_max = args.center + args.size2;
+
+        *aabb = {
+                m_min.x, m_min.y, m_min.z,
+                m_max.x, m_max.y, m_max.z
+        };
+    }
+    uint32_t get_input_flag() override {
+        return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+    }
+    void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
+        // 暂时没有对应的program，设置不了
+        // set_hitgroup_cube_general(state, hgr, idx, this);
+    }
+    float3 get_center() override {
+        return args.center;
+    } 
+    float get_horizontal_size() override {
+        return std::max(args.size2.x, args.size2.z);
+    }
+    void move_to(float3 pos) override {
+        args.center = pos;
+        clear_map_modelAt();
+        collideBox.center = pos;
+        set_map_modelAt();
+    }
+}
+
 class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
 public:
     Parallelogram args;
