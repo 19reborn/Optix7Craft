@@ -102,6 +102,7 @@ extern "C" __global__ void __raygen__pinhole_camera()
         float3 ray_origin = camera->eye;
         float3 ray_direction = normalize(d.x*camera->U + d.y*camera->V + camera->W);
 
+        
         SunPRD sun_prd;
         sun_prd.importance = 1.f;
         sun_prd.depth = 0;
@@ -168,7 +169,7 @@ extern "C" __global__ void __raygen__pinhole_camera()
         //acc_val = make_float4(result, 0.f);
     //}
     params.accum_buffer[image_index] = make_float4(accum_color, 1.0f);
-    params.frame_buffer[image_index] = make_color(tonemap(accum_color));
+    params.frame_buffer[image_index] = make_color(accum_color);
     //params.frame_buffer[image_index] = make_color(tonemap(make_float3(acc_val)));
     //params.accum_buffer[image_index] = acc_val;
 

@@ -106,7 +106,7 @@ std::vector<cudaArray_t>         textureArrays;
 // Mouse state
 int32_t           mouse_button = -1;
 
-const int         max_trace = 5;
+const int         max_trace = 10;
 
 // Model state
 bool              model_need_update = false;
@@ -617,7 +617,7 @@ public:
                     // { 0.2f, 0.7f, 0.8f },   // Kd
                     { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                     { 0.9f, 0.9f, 0.9f },   // Ks
-                    { 0.5f, 0.5f, 0.5f },   // Kr
+                    { 0.8f, 0.8f, 0.8f },   // Kr
                     64,                     // phong_exp
             };
             OPTIX_CHECK(optixSbtRecordPackHeader(
@@ -631,18 +631,20 @@ public:
                 state.radiance_texture_cube_prog_group,
                 &hgr[idx]));
             hgr[idx].data.geometry.cube = args;
+            //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
             hgr[idx].data.shading.metal = {
                     { 0.2f, 0.5f, 0.5f },   // Ka
                     { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                     { 0.9f, 0.9f, 0.9f },   // Ks
-                    { 0.5f, 0.5f, 0.5f },   // Kr
+                    { 0.01f, 0.01f, 0.01f },   // Kr 
                     64,                     // phong_exp
             };
             hgr[idx].data.has_diffuse = true;
             hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
-            hgr[idx].data.has_normal = true;
+            hgr[idx].data.has_normal = false;
             hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
-
+            hgr[idx].data.has_roughness = false;
+            hgr[idx].data.roughness_map = texture_list[textures["wood_roughness"]]->textureObject;
             OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.occlusion_texture_cube_prog_group,
                 &hgr[idx + 1]));
@@ -2527,7 +2529,7 @@ int main( int argc, char* argv[] )
     // Licensed under the Creative Commons CC0 License.
     load_texture("Wood049_1K_Color.jpg","wood_diffuse");
     load_texture("Wood049_1K_Normal.jpg", "wood_normal");
-
+    load_texture("Wood049_1K_Displacement.jpg", "wood_roughness");
     //
     // Parse command line options
     //
@@ -2572,7 +2574,7 @@ int main( int argc, char* argv[] )
         //
         for(int i=0; i<10; i++) {
             for(int j=0; j<3; j++) {
-                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, WOOD));
+                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f));
             }
         }
         modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));

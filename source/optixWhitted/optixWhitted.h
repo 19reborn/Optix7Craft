@@ -109,6 +109,8 @@ enum SphereShellHitType {
 };
 
 
+
+
 struct SphereShell
 {
 	float3 	center;
@@ -211,6 +213,8 @@ struct HitGroupData
     cudaTextureObject_t diffuse_map;
     bool  has_normal;
     cudaTextureObject_t  normal_map;
+    bool  has_roughness;
+    cudaTextureObject_t  roughness_map;
 };
 
 
@@ -222,7 +226,13 @@ struct RadiancePRD
 
 };
 
+enum LightType {
+    Point,
+    Directional
+};
+
 struct SunPRD {
+    
     int depth;
     unsigned int seed;
 
@@ -234,6 +244,7 @@ struct SunPRD {
     float3 origin;
     float3 direction;
 
+    LightType type;
 };
 
 struct OcclusionPRD

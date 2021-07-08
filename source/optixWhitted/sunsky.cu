@@ -96,7 +96,7 @@ extern "C" __global__ void __miss__bg()
     SunPRD *prd = getPRD<SunPRD>();
     const bool show_sun = (prd->depth == 0);
     const float3 ray_dir = optixGetWorldRayDirection();;
-    prd->radiance = ray_dir.y <= -0.0f ? sbt_data->bg_color : querySkyModel( show_sun, ray_dir);
+    prd->radiance = ray_dir.y <= -0.0f ? sbt_data->bg_color : tonemap(querySkyModel( show_sun, ray_dir));
     //prd->color = tonemap(prd->radiance * prd->attenuation);
     prd->done = true;
     unsigned int u0, u1;
