@@ -1290,7 +1290,7 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "Usage  : " << argv0 << " [options]\n";
     std::cerr << "Options: --file | -f <filename>      File for image output\n";
     std::cerr << "         --no-gl-interop             Disable GL interop for display\n";
-    std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 768x768\n";
+    std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 1024x768\n";
     std::cerr << "         --help | -h                 Print this usage message\n";
     exit( 0 );
 }
@@ -2672,7 +2672,7 @@ void cleanupState( WhittedState& state )
 int main( int argc, char* argv[] )
 {
     WhittedState state;
-    state.params.width  = 768;
+    state.params.width  = 1024;
     state.params.height = 768;
     sutil::CUDAOutputBufferType output_buffer_type = sutil::CUDAOutputBufferType::GL_INTEROP;
     sky.init();
