@@ -157,6 +157,8 @@ struct WhittedState {
     OptixProgramGroup           occlusion_metal_cube_prog_group = 0;
     OptixProgramGroup           radiance_texture_cube_prog_group = 0;
     OptixProgramGroup           occlusion_texture_cube_prog_group = 0;
+    OptixProgramGroup           radiance_glass_cube_prog_group = 0;
+    OptixProgramGroup           occlusion_glass_cube_prog_group = 0;
     OptixProgramGroup           radiance_floor_prog_group         = 0;
     OptixProgramGroup           occlusion_floor_prog_group        = 0;
 
@@ -322,6 +324,7 @@ enum ModelTexture { // 记得也填get_texture_name
     DIRT,
     GRASS,
     IRON,
+    GLASS,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -437,10 +440,15 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
     ModelTexture texture_id = pmodel->texture_id;
     // 以上啥也没干，预处理
 
-    if(texture_id == NONE) {
+    if (texture_id == NONE) {
         OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.radiance_metal_cube_prog_group,
-                &hgr[idx]));
+            state.radiance_metal_cube_prog_group,
+            &hgr[idx]));
+    }
+    else if (texture_id == GLASS) {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.radiance_glass_cube_prog_group,
+            &hgr[idx]));
     } else {    // 这里不确定是不是else就行了
         OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_texture_cube_prog_group,
@@ -458,7 +466,22 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 { 0.8f, 0.8f, 0.8f },   // Kr
                 64,                     // phong_exp
         };
-    } else {
+    } else if (texture_id == GLASS) {
+        hgr[idx].data.shading.glass = {
+                1e-2f,                                  // importance_cutoff
+                { 0.034f, 0.055f, 0.085f },             // cutoff_color
+                3.0f,                                   // fresnel_exponent
+                0.1f,                                   // fresnel_minimum
+                1.0f,                                   // fresnel_maximum
+                1.4f,                                   // refraction_index
+                { 1.0f, 1.0f, 1.0f },                   // refraction_color
+                { 1.0f, 1.0f, 1.0f },                   // reflection_color
+                { logf(.83f), logf(.83f), logf(.83f) }, // extinction_constant
+                { 0.6f, 0.6f, 0.6f },                   // shadow_attenuation
+                10,                                     // refraction_maxdepth
+                5                                       // reflection_maxdepth
+        };
+    }else {
         //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
         hgr[idx].data.shading.metal = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
@@ -502,7 +525,12 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         OPTIX_CHECK(optixSbtRecordPackHeader(
             state.occlusion_metal_cube_prog_group,
             &hgr[idx + 1]));
-    } else {    // 这里同上
+    }else if (texture_id == GLASS) {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.occlusion_glass_cube_prog_group,
+            &hgr[idx + 1]));
+        hgr[idx + 1].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
+    }else {    // 这里同上
         OPTIX_CHECK(optixSbtRecordPackHeader(
             state.occlusion_texture_cube_prog_group,
             &hgr[idx + 1]));
@@ -1313,7 +1341,7 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 5u;
+    state.params.samples_per_launch = 10u;
     state.params.light = g_light;
     state.params.sun = sun;
     state.params.sky = sky;
@@ -1867,6 +1895,57 @@ static void createTextureCubeProgram(WhittedState& state, std::vector<OptixProgr
     state.occlusion_texture_cube_prog_group = occlusion_cube_prog_group;
 }
 
+static void createGlassCubeProgram(WhittedState& state, std::vector<OptixProgramGroup>& program_groups)
+{
+    OptixProgramGroup           radiance_cube_prog_group;
+    OptixProgramGroupOptions    radiance_cube_prog_group_options = {};
+    OptixProgramGroupDesc       radiance_cube_prog_group_desc = {};
+    radiance_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+        radiance_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    radiance_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__transparency_radiance";
+    radiance_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    char    log[2048];
+    size_t  sizeof_log = sizeof(log);
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &radiance_cube_prog_group_desc,
+        1,
+        &radiance_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &radiance_cube_prog_group));
+
+    program_groups.push_back(radiance_cube_prog_group);
+    state.radiance_glass_cube_prog_group = radiance_cube_prog_group;
+
+    OptixProgramGroup           occlusion_cube_prog_group;
+    OptixProgramGroupOptions    occlusion_cube_prog_group_options = {};
+    OptixProgramGroupDesc       occlusion_cube_prog_group_desc = {};
+    occlusion_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+        occlusion_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    occlusion_cube_prog_group_desc.hitgroup.moduleCH = nullptr;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameCH = nullptr;
+    occlusion_cube_prog_group_desc.hitgroup.moduleAH = state.shading_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameAH = "__anyhit__glass_occlusion";
+
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &occlusion_cube_prog_group_desc,
+        1,
+        &occlusion_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &occlusion_cube_prog_group));
+
+    program_groups.push_back(occlusion_cube_prog_group);
+    state.occlusion_glass_cube_prog_group = occlusion_cube_prog_group;
+}
+
 static void createFloorProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
 {
     OptixProgramGroup           radiance_floor_prog_group;
@@ -1977,6 +2056,7 @@ void createPipeline( WhittedState &state )
     createMetalSphereProgram( state, program_groups );
     createMetalCubeProgram( state, program_groups );
     createTextureCubeProgram(state, program_groups);
+    createGlassCubeProgram(state, program_groups);
     createFloorProgram( state, program_groups );
     createMissProgram( state, program_groups );
 

@@ -652,7 +652,6 @@ extern "C" __global__ void __anyhit__glass_occlusion()
         optixIgnoreIntersection();
 }
 
-
 extern "C" __global__ void __closesthit__texture_radiance()
 {
     const HitGroupData* sbt_data = (HitGroupData*)optixGetSbtDataPointer();
@@ -708,6 +707,213 @@ extern "C" __global__ void __closesthit__texture_radiance()
     float3 ffnormal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_shade_normal);
 
     phongShade(phong.Kd, phong.Ka, phong.Ks, phong.Kr, phong.phong_exp, ffnormal);
+
+}
+
+extern "C" __global__ void __closesthit__transparency_radiance()
+{
+    const HitGroupData* sbt_data = (HitGroupData*)optixGetSbtDataPointer();
+    Glass glass = sbt_data->shading.glass;
+
+    float3 geometry_normal = make_float3(
+        int_as_float(optixGetAttribute_0()),
+        int_as_float(optixGetAttribute_1()),
+        int_as_float(optixGetAttribute_2()));
+
+    const float3 ray_orig = optixGetWorldRayOrigin();
+    const float3 ray_dir  = optixGetWorldRayDirection();
+    const float  ray_t    = optixGetRayTmax();
+
+    SunPRD* sun_prd = getPRD<SunPRD>();
+    float3 t;                                    
+    float3 r;
+    float3 hit_point = ray_orig + ray_t * ray_dir;
+    float3 front_hit_point = hit_point, back_hit_point = hit_point;
+
+    float3 shade_normal = geometry_normal;
+
+    normalize(shade_normal);
+    //float3 world_geo_normal = normalize(optixTransformNormalFromObjectToWorldSpace(geometry_normal));
+    float3 world_shade_normal = normalize(optixTransformNormalFromObjectToWorldSpace(shade_normal));
+    front_hit_point += params.scene_epsilon * shade_normal;
+    back_hit_point -= params.scene_epsilon * shade_normal;
+    float3 p_normal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_shade_normal);
+
+    const float3 fhp = optixTransformPointFromObjectToWorldSpace(front_hit_point);
+    const float3 bhp = optixTransformPointFromObjectToWorldSpace(back_hit_point);
+
+
+    // ambient contribution
+    //float3 result = p_Ka * params.ambient_light_color;
+    
+
+    //sun light
+    DirectionalLight sun = params.sun;
+
+    const float z1 = rnd(sun_prd->seed);
+    const float z2 = rnd(sun_prd->seed);
+
+    float3 w_in;
+    cosine_sample_hemisphere(z1, z2, w_in);
+    const Onb onb(p_normal);
+    onb.inverse_transform(w_in);
+    //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
+
+    sun_prd->origin = hit_point;
+    sun_prd->direction = w_in;
+
+    // Add direct light sample weighted by shadow term and 1/probability.
+    // The pdf for a directional area light is 1/solid_angle.
+
+    const float3 light_center = hit_point + sun.direction;
+    const float r1 = rnd(sun_prd->seed);
+    const float r2 = rnd(sun_prd->seed);
+    const float2 disk_sample = square_to_disk(make_float2(r1, r2));
+    const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
+    float3 L = normalize(jittered_pos - hit_point);
+    float Ldist = length(jittered_pos - hit_point);
+
+    float reflection = 1.0f;
+    float3 result = make_float3(0.0f);
+
+    const int depth = sun_prd->depth;
+
+    float3 beer_attenuation;
+    if (dot(world_shade_normal, ray_dir) > 0)
+    {
+        // Beer's law attenuation
+        beer_attenuation = exp(glass.extinction_constant * ray_t);
+    }
+    else
+    {
+        beer_attenuation = make_float3(1);
+    }
+
+    // refraction
+    // compare depth to max_depth - 1 to leave room for a potential shadow ray trace
+    if (depth < min(glass.refraction_maxdepth, params.max_depth - 1))
+    {
+        if (refract(t, ray_dir, world_shade_normal, glass.refraction_index))
+        {
+            // check for external or internal reflection
+            float cos_theta = dot(ray_dir, world_shade_normal);
+            if (cos_theta < 0.0f)
+                cos_theta = -cos_theta;
+            else
+                cos_theta = dot(t, world_shade_normal);
+
+            reflection = fresnel_schlick(
+                cos_theta,
+                glass.fresnel_exponent,
+                glass.fresnel_minimum,
+                glass.fresnel_maximum);
+
+            float importance =
+                sun_prd->importance
+                * (1.0f - reflection)
+                * luminance(glass.refraction_color * beer_attenuation);
+            float3 color = glass.cutoff_color;
+            if (importance > glass.importance_cutoff)
+            {
+                color = traceSun(bhp, t, depth + 1, importance);
+            }
+            result += (1.0f - reflection) * glass.refraction_color * color;
+        }
+        // else TIR
+    } // else reflection==1 so refraction has 0 weight
+
+    // reflection
+    // compare depth to max_depth - 1 to leave room for a potential shadow ray trace
+    float3 color = glass.cutoff_color;
+    if (depth < min(glass.reflection_maxdepth, params.max_depth - 1))
+    {
+        r = reflect(ray_dir, world_shade_normal);
+
+        float importance =
+            sun_prd->importance
+            * reflection
+            * luminance(glass.reflection_color * beer_attenuation);
+        if (importance > glass.importance_cutoff)
+        {
+            color = traceSun(fhp, r, depth + 1, importance);
+        }
+    }
+    result += reflection * glass.reflection_color * color;
+
+    result = result * beer_attenuation;
+
+    /*
+    // compute Point light
+    BasicLight light = params.light;
+    float Ldist = length(light.pos - hit_point);
+    float3 L = normalize(light.pos - hit_point);
+    float nDl = dot( p_normal, L);
+
+    // cast shadow ray
+    if (nDl > 0.0f)
+    {
+        OcclusionPRD shadow_prd;
+        shadow_prd.attenuation = make_float3(1.0f);
+
+        optixTrace(
+            params.handle,
+            hit_point,
+            L,
+            0.01f,
+            Ldist,
+            0.0f,
+            OptixVisibilityMask(1),
+            OPTIX_RAY_FLAG_NONE,
+            RAY_TYPE_OCCLUSION,
+            RAY_TYPE_COUNT,
+            RAY_TYPE_OCCLUSION,
+            float3_as_args(shadow_prd.attenuation));
+
+        float3 light_attenuation = shadow_prd.attenuation;
+
+        // If not completely shadowed, light the hit point
+        if (fmaxf(light_attenuation) > 0.0f)
+        {
+            float3 Lc = light.color * light_attenuation;
+
+            result += p_Kd * nDl * Lc;
+
+            float3 H = normalize(L - ray_dir);
+            float nDh = dot(p_normal, H);
+            if (nDh > 0)
+            {
+                float power = pow(nDh, p_phong_exp);
+                result += p_Ks * power * Lc;
+            }
+
+        }
+    }
+
+    // ray tree attenuation
+    
+    float new_importance = sun_prd->importance * luminance(p_Kr);
+    int new_depth = sun_prd->depth + 1;
+
+    // reflection ray
+    // compare new_depth to max_depth - 1 to leave room for a potential shadow ray trace
+    if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
+    {
+        float3 R = reflect(ray_dir, p_normal);
+
+        result += p_Kr * traceSun(hit_point, R, new_depth, new_importance);
+    }
+    
+    */
+
+
+  
+    sun_prd->radiance = result;
+    unsigned int u0, u1;
+    packPointer(&sun_prd, u0, u1);
+    optixSetPayload_0(u0);
+    optixSetPayload_1(u1);
+    // pass the color back
+
 
 }
 
