@@ -930,7 +930,7 @@ void eraseParticle(Particle* pPar)
 }
 
 unsigned int jiangzemin = 19260817;
-void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize, int texture_id)
+void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize, ModelTexture texture_id)
 {
     while (number--)
     {
