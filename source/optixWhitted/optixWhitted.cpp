@@ -115,6 +115,9 @@ bool              model_need_update = false;
 
 //Particles settings
 bool              isParticle = true;
+
+//Sun height
+bool              renewShadowOnTime = false;
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -313,6 +316,11 @@ float3 nearCeil(float3& a,float3& vec)
                 tar.z);
         }
     }
+}
+float sunAngleScaling(float f)
+{
+    return fmod(f, 2 * M_PI);
+
 }
 //------------------------------------------------------------------------------
 //
@@ -1274,6 +1282,10 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         // save your file
         if (key == GLFW_KEY_F5) {
             saveData();
+        }
+        if (key == GLFW_KEY_F6) {
+            renewShadowOnTime = !renewShadowOnTime;
+            std::cout << "renewShadowOnTime = " << renewShadowOnTime << std::endl;
         }
 
         // 吸管，取色器
@@ -2768,7 +2780,7 @@ int main( int argc, char* argv[] )
     state.params.height = 768;
     sutil::CUDAOutputBufferType output_buffer_type = sutil::CUDAOutputBufferType::GL_INTEROP;
     sky.init();
-    sky.setSunTheta( DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
+    sky.setSunTheta( 0/*DEFAULT_SUN_THETA*/);  // 0: noon, pi/2: sunset
     sky.setSunPhi(DEFAULT_SUN_PHI);
     sky.setTurbidity(2.2f);
     //Split out sun for direct sampling
@@ -2847,11 +2859,11 @@ int main( int argc, char* argv[] )
         modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));*/
         initData();
-        modelLst.push_back(new cRect(
+        /*modelLst.push_back(new cRect(
             make_float3( 32.0f, 0.0f, 0.0f ),
             make_float3( 0.0f, 0.0f, 16.0f ),
             make_float3( -16.0f, 0.01f, -8.0f )
-        ));
+        ));*/
 
         initEntitySystem();
 
@@ -2911,7 +2923,7 @@ int main( int argc, char* argv[] )
 
 
                     //----------------------------sun updating----------------------------
-                    float sunAngle = 1.1f - glfwGetTime() / 60 * (2 * M_PI - 1.1f);
+                    float sunAngle = sunAngleScaling(0.f + glfwGetTime() / 240 * (0.5f * M_PI - 0.f));
                     //std::cout << sunAngle << std::endl;
                     sky.setSunTheta(sunAngle);
                     sun.direction = sky.getSunDir();
@@ -2924,7 +2936,11 @@ int main( int argc, char* argv[] )
                     sun.casts_shadow = 1;
                     //state.params.sun = sun;
                     state.params.sky = sky;
-
+                    if (renewShadowOnTime)
+                    {
+                        model_need_update = true;
+                    }
+                    
 
 
 
