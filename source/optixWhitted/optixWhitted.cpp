@@ -930,19 +930,19 @@ void eraseParticle(Particle* pPar)
 }
 
 unsigned int jiangzemin = 19260817;
-void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize)
+void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize, int texture_id)
 {
     while (number--)
     {
         float theta = fmod(rnd(jiangzemin), 2 * M_PI);
         float radiu = fmod(rnd(jiangzemin), r);
-        float randz = maxSize;//fmod(rand(), maxSize);
+        float randz = fmod(rnd(jiangzemin), maxSize);
         createParticle(
             place + make_float3(radiu * cos(theta), 0.f, radiu * sin(theta)),
             make_float3(radiu * cos(theta) * powerxz, powery, radiu * sin(theta) * powerxz),
             make_float3(randz, randz, randz),
-            0.5f,
-            NONE
+            0.3f,
+            texture_id
         );
     }
 }
@@ -1186,7 +1186,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         }
         
         if (key == GLFW_KEY_T) {
-            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f);
+            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f, NONE);
         }
     }
     else if (action == GLFW_RELEASE)
@@ -2269,6 +2269,11 @@ void updateCreature(float dt)//the motion of entities in dt time
             {
                 if (ent->velocity.y <= 0)
                 {
+                    cModel* entCollideATBlockhere = nullptr;
+                    if (get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
+                    {
+                        createParticles_planeBounce(ent->box.center - ent->box.size - make_float3(0.2f,0.f,0.2f), -0.4 * ent->velocity.y, 4.f, 2, 10, 0.01f, entCollideATBlockhere->texture_id);
+                    }
                     ent->isOnGround = true;
                 }
                 ent->dy(-ent->velocity.y * dt);
