@@ -197,10 +197,9 @@ struct Water
     float3 Kr;
     float  phong_exp;
     float  importance_cutoff;
-    float3 cutoff_color;
-    float3 refraction_color;
     int    refraction_maxdepth;
     float refractivity_n;
+    float transparency;
 };
 
 struct HitGroupData

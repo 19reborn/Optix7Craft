@@ -328,6 +328,7 @@ enum ModelTexture { // 记得也填get_texture_name
     GRASS,
     IRON,
     GLASS,
+    WATER,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -340,6 +341,8 @@ string get_texture_name(ModelTexture tex_id) {
         case DIRT: return "DIRT";
         case GRASS: return "GRASS";
         case IRON: return "IRON";
+        case GLASS: return "GLASS";
+        case WATER: return "WATER";
         default: return "ERROR";
     }
 }
@@ -452,7 +455,13 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         OPTIX_CHECK(optixSbtRecordPackHeader(
             state.radiance_glass_cube_prog_group,
             &hgr[idx]));
-    } else {    // 这里不确定是不是else就行了
+    } 
+    else if (texture_id == WATER) {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.radiance_water_cube_prog_group,
+            &hgr[idx]));
+    }
+    else {    // 这里不确定是不是else就行了
         OPTIX_CHECK(optixSbtRecordPackHeader(
                 state.radiance_texture_cube_prog_group,
                 &hgr[idx]));
@@ -484,7 +493,21 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 10,                                     // refraction_maxdepth
                 5                                       // reflection_maxdepth
         };
-    }else {
+    }
+    else if (texture_id == WATER) {
+        hgr[idx].data.shading.water = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.5f, 0.6f, 0.7f },   // Kd   // 和主体的颜色有关
+                { 0.4f, 0.4f, 0.4f },   // Ks
+                { 0.05f, 0.05f, 0.05f },   // Kr
+                64,                     // phong_exp
+                0.001f,                 // importance_cutoff
+                10,                     // refraction_maxdepth
+                1.33f,                    // refractivity_n 折射率
+                0.06                    // transparency 透明度
+        };
+    }
+    else {
         //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
         hgr[idx].data.shading.metal = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
@@ -533,7 +556,13 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
             state.occlusion_glass_cube_prog_group,
             &hgr[idx + 1]));
         hgr[idx + 1].data.shading.glass.shadow_attenuation = { 0.6f, 0.6f, 0.6f };
-    }else {    // 这里同上
+    }
+    else if (texture_id == WATER) {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.occlusion_water_cube_prog_group,
+            &hgr[idx + 1]));
+    }
+    else {    // 这里同上
         OPTIX_CHECK(optixSbtRecordPackHeader(
             state.occlusion_texture_cube_prog_group,
             &hgr[idx + 1]));

@@ -920,8 +920,7 @@ extern "C" __global__ void __closesthit__transparency_radiance()
 extern "C" __global__ void __closesthit__water_radiance()
 {
     const HitGroupData* sbt_data = (HitGroupData*)optixGetSbtDataPointer();
-    Water phong = sbt_data->shading.water;
-
+    Water water = sbt_data->shading.water;
     float3 geometry_normal = make_float3(
         int_as_float(optixGetAttribute_0()),
         int_as_float(optixGetAttribute_1()),
@@ -935,7 +934,7 @@ extern "C" __global__ void __closesthit__water_radiance()
 
     //得到交点位于立方体的哪个面（y轴是天空方向）
     cube_face face = cube_face(optixGetAttribute_5());
-
+    /*
     if (sbt_data->has_normal) {
         shade_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y)) * 2 - 1.0f;
         //printf("%f,%f,%f\n", shade_normal.x, shade_normal.y, shade_normal.z);
@@ -951,27 +950,28 @@ extern "C" __global__ void __closesthit__water_radiance()
     }
     if (sbt_data->has_diffuse) {
         if (face == y_up)
-            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_y_up, coord.x, coord.y));
+            water.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_y_up, coord.x, coord.y));
         else if (face == y_down)
-            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_y_down, coord.x, coord.y));
+            water.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_y_down, coord.x, coord.y));
         if (face == x_up)
-            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_x_up, coord.x, coord.y));
+            water.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_x_up, coord.x, coord.y));
         else if (face == x_down)
-            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_x_down, coord.x, coord.y));
+            water.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_x_down, coord.x, coord.y));
         if (face == z_up)
-            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_z_up, coord.x, coord.y));
+            water.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_z_up, coord.x, coord.y));
         else if (face == z_down)
-            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_z_down, coord.x, coord.y));
+            water.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_z_down, coord.x, coord.y));
     }
     if (sbt_data->has_roughness) {
-        phong.phong_exp = 1.0f / (tex2D<float>(sbt_data->roughness_map, coord.x, coord.y));
+        water.phong_exp = 1.0f / (tex2D<float>(sbt_data->roughness_map, coord.x, coord.y));
     }
-    //normalize(shade_normal);
+    */
+    normalize(shade_normal);
     //float3 world_geo_normal = normalize(optixTransformNormalFromObjectToWorldSpace(geometry_normal));
     float3 world_shade_normal = normalize(optixTransformNormalFromObjectToWorldSpace(shade_normal));
     float3 p_normal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_shade_normal);
-    float3 p_Kd = phong.Kd, p_Ka = phong.Ka, p_Ks = phong.Ks, p_Kr = phong.Kr;
-    float p_phong_exp = phong.phong_exp;
+    float3 p_Kd = water.Kd, p_Ka = water.Ka, p_Ks = water.Ks, p_Kr = water.Kr;
+    float p_phong_exp = water.phong_exp;
 
     const float3 ray_orig = optixGetWorldRayOrigin();
     const float3 ray_dir = optixGetWorldRayDirection();
@@ -1000,7 +1000,6 @@ extern "C" __global__ void __closesthit__water_radiance()
     sun_prd->origin = hit_point;
     sun_prd->direction = w_in;
 
-    sun_prd->attenuation *= p_Kd;
 
     // Add direct light sample weighted by shadow term and 1/probability.
     // The pdf for a directional area light is 1/solid_angle.
@@ -1012,6 +1011,7 @@ extern "C" __global__ void __closesthit__water_radiance()
     const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
     float3 L = normalize(jittered_pos - hit_point);
     float Ldist = length(jittered_pos - hit_point);
+
 
     const float NdotL = dot(p_normal, L);
     if (NdotL > 0.0f) {
@@ -1050,6 +1050,7 @@ extern "C" __global__ void __closesthit__water_radiance()
             }
         }
     }
+
     if (fmaxf(p_Kr) > 0)
     {
         // ray tree attenuation
@@ -1064,15 +1065,15 @@ extern "C" __global__ void __closesthit__water_radiance()
             result += p_Kr * traceSun(hit_point, R, new_depth, new_importance);
         }
     }
-    float local_transparency = 0.05;
+
+    float local_transparency = water.transparency;
 
     float importance_R = sun_prd->importance * luminance(make_float3(local_transparency, local_transparency, local_transparency));
     // refraction ray
-    if (importance_R > phong.importance_cutoff && sun_prd->depth < min(params.max_depth,phong.refraction_maxdepth-1))
+    if (importance_R > water.importance_cutoff && sun_prd->depth < min(params.max_depth-1 ,water.refraction_maxdepth))
     {
         float3 R;
-        refract(R, ray_dir, p_normal, phong.refractivity_n);
-
+        refract(R, ray_dir, p_normal, water.refractivity_n);
         result *= (1.0f - local_transparency);
         result += local_transparency * traceSun(hit_point,R,sun_prd->depth + 1, sun_prd->importance);
     }
