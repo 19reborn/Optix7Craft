@@ -360,6 +360,7 @@ float3 nearCeil(float3& a,float3& vec)
 enum ModelTexture {
     NONE = 0,
     WOOD,
+    PLANK,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -499,6 +500,21 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
         hgr[idx].data.has_roughness = true;
         hgr[idx].data.roughness_map = texture_list[textures["wood_roughness"]]->textureObject;
+    } else if(texture_id == PLANK) {
+        //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
+        hgr[idx].data.shading.metal = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
+                { 0.9f, 0.9f, 0.9f },   // Ks
+                { 0.01f, 0.01f, 0.01f },   // Kr 
+                64,                     // phong_exp
+        };
+        hgr[idx].data.has_diffuse = true;
+        hgr[idx].data.diffuse_map = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.has_normal = true;
+        hgr[idx].data.normal_map = texture_list[textures["plank_normal"]]->textureObject;
+        hgr[idx].data.has_roughness = true;
+        hgr[idx].data.roughness_map = texture_list[textures["plank_roughness"]]->textureObject;
     }
     
     if(texture_id == NONE) {
@@ -1218,6 +1234,7 @@ string get_texture_name(ModelTexture tex_id) {
     switch (tex_id) {
         case NONE: return "IRON";   // 暂定，暂定
         case WOOD: return "WOOD";
+        case PLANK: return "PLANK";
         default: return "ERROR";
     }
 }
@@ -2536,6 +2553,9 @@ int main( int argc, char* argv[] )
     load_texture("Wood049_1K_Color.jpg","wood_diffuse");
     load_texture("Wood049_1K_Normal.jpg", "wood_normal");
     load_texture("Wood049_1K_Displacement.jpg", "wood_roughness");
+    load_texture("Planks021_1K_Color.jpg","plank_diffuse");
+    load_texture("Planks021_1K_Normal.jpg", "plank_normal");
+    load_texture("Planks021_1K_Displacement.jpg", "plank_roughness");
     //
     // Parse command line options
     //
