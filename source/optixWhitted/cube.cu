@@ -23,11 +23,10 @@ static __device__ float2 get_coord(float3 relativeCoord, float3 size)
         uv.y = (relativeCoord.y + size.y) / (2 * size.y);
     }
     else if (fabs(relativeCoord.x) == size.x) {
-        uv.x = (relativeCoord.y + size.y) / (2 * size.y);
-        uv.y = (relativeCoord.z + size.z) / (2 * size.z);
+        uv.x = (relativeCoord.z + size.z) / (2 * size.z);
+        uv.y = (relativeCoord.y + size.y) / (2 * size.y);
     }
     else if (fabs(relativeCoord.y) == size.y) {
-        // 可能要换下顺序?
         uv.x = (relativeCoord.z + size.z) / (2 * size.z);
         uv.y = (relativeCoord.x + size.x) / (2 * size.x);
     }
