@@ -453,8 +453,6 @@ void cModel::clear_map_modelAt() {
     }
 }
 
-struct Particle;
-
 // 仅限cube使用！
 template<class T>
 void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx, T* pmodel) {
@@ -1999,54 +1997,58 @@ void syncCameraDataToSbt( WhittedState &state, const CameraData& camData )
 
 void createSBT( WhittedState &state)
 {
-    // Raygen program record
-    {
-        size_t sizeof_raygen_record = sizeof( RayGenRecord );
+    static bool first_createSBT = true;
+    if(first_createSBT) {
+        // Raygen program record
+        {
+            size_t sizeof_raygen_record = sizeof( RayGenRecord );
 
-        if(d_raygen_record_allocated) {
-            CUDA_CHECK( cudaFree((void*)d_raygen_record) );
-            d_raygen_record_allocated = false;
+            if(d_raygen_record_allocated) {
+                CUDA_CHECK( cudaFree((void*)d_raygen_record) );
+                d_raygen_record_allocated = false;
+            }
+
+            CUDA_CHECK( cudaMalloc(
+                    reinterpret_cast<void**>( &d_raygen_record ),
+                    sizeof_raygen_record ) );
+
+            d_raygen_record_allocated = true;
+
+            state.sbt.raygenRecord = d_raygen_record;
         }
 
-        CUDA_CHECK( cudaMalloc(
-                reinterpret_cast<void**>( &d_raygen_record ),
-                sizeof_raygen_record ) );
+        // Miss program record
+        {
+            size_t sizeof_miss_record = sizeof( MissRecord );
+        
+            if(d_miss_record_allocated) {
+                CUDA_CHECK(cudaFree((void*)d_miss_record));
+                d_miss_record_allocated = false;
+            }
 
-        d_raygen_record_allocated = true;
+            CUDA_CHECK( cudaMalloc(
+                    reinterpret_cast<void**>( &d_miss_record ),
+                    sizeof_miss_record*RAY_TYPE_COUNT ) );
 
-        state.sbt.raygenRecord = d_raygen_record;
-    }
+            d_miss_record_allocated = true;
 
-    // Miss program record
-    {
-        size_t sizeof_miss_record = sizeof( MissRecord );
-     
-        if(d_miss_record_allocated) {
-            CUDA_CHECK(cudaFree((void*)d_miss_record));
-            d_miss_record_allocated = false;
+            MissRecord ms_sbt[RAY_TYPE_COUNT];
+            optixSbtRecordPackHeader( state.radiance_miss_prog_group, &ms_sbt[0] );
+            optixSbtRecordPackHeader( state.occlusion_miss_prog_group, &ms_sbt[1] );
+            ms_sbt[1].data = ms_sbt[0].data = { 0.34f, 0.55f, 0.85f };
+
+            CUDA_CHECK( cudaMemcpy(
+                    reinterpret_cast<void*>( d_miss_record ),
+                    ms_sbt,
+                    sizeof_miss_record*RAY_TYPE_COUNT,
+                    cudaMemcpyHostToDevice
+            ) );
+
+            state.sbt.missRecordBase          = d_miss_record;
+            state.sbt.missRecordCount         = RAY_TYPE_COUNT;
+            state.sbt.missRecordStrideInBytes = static_cast<uint32_t>( sizeof_miss_record );
         }
-
-        CUDA_CHECK( cudaMalloc(
-                reinterpret_cast<void**>( &d_miss_record ),
-                sizeof_miss_record*RAY_TYPE_COUNT ) );
-
-        d_miss_record_allocated = true;
-
-        MissRecord ms_sbt[RAY_TYPE_COUNT];
-        optixSbtRecordPackHeader( state.radiance_miss_prog_group, &ms_sbt[0] );
-        optixSbtRecordPackHeader( state.occlusion_miss_prog_group, &ms_sbt[1] );
-        ms_sbt[1].data = ms_sbt[0].data = { 0.34f, 0.55f, 0.85f };
-
-        CUDA_CHECK( cudaMemcpy(
-                reinterpret_cast<void*>( d_miss_record ),
-                ms_sbt,
-                sizeof_miss_record*RAY_TYPE_COUNT,
-                cudaMemcpyHostToDevice
-        ) );
-
-        state.sbt.missRecordBase          = d_miss_record;
-        state.sbt.missRecordCount         = RAY_TYPE_COUNT;
-        state.sbt.missRecordStrideInBytes = static_cast<uint32_t>( sizeof_miss_record );
+        first_createSBT = false;
     }
 
     // Hitgroup program record
