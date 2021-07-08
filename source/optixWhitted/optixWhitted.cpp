@@ -69,6 +69,7 @@
 #include <algorithm>
 #include <map>
 #include <unordered_map>
+#include <fstream>
 using std::vector;
 using std::string;
 using std::map;
@@ -1014,6 +1015,9 @@ const float DEFAULT_SUN_RADIUS = 0.05f;  // Softer default to show off soft shad
 const float DEFAULT_SUN_THETA = 1.1f;
 const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 
+// data manipulation
+void initData();
+void saveData();
 // light
 const BasicLight g_light = {
         make_float3( 60.0f, 40.0f, 0.0f ),   // pos
@@ -1204,7 +1208,11 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_F11) {
             glfwSetWindowSize(window, curWidth*1.2f, curHeight*1.2f);
         }
-    
+        // save your file
+        if (key == GLFW_KEY_F5) {
+            saveData();
+        }
+
         // 吸管，取色器
         if (key == GLFW_KEY_F) {
             if (istargeted) {
@@ -2185,7 +2193,44 @@ bool isCollide(Creature*& ent)
 //
 // Camera
 //
-
+void initData()
+{
+    std::ifstream savefile(sutil::sampleDataFilePath("Saves/SAVE0.txt"), std::ios::in);
+    if (!savefile) std::cout << "failed to load savefiles" << std::endl;
+    else {
+        int savecnt = 0;
+        float savedx, savedy, savedz, saveds;
+        int savedTexture;
+        while (!savefile.eof())
+        {
+            savecnt++;
+            savefile >> savedx >> savedy >> savedz >> saveds >> savedTexture;
+            modelLst.push_back(new cCube({ savedx, savedy, savedz }, saveds, (ModelTexture)savedTexture));
+        }
+        std::cerr << "Successfully loaded " << savecnt << " Cubes" << std::endl;
+        savefile.close();
+    }
+}
+void saveData()
+{
+    //save Blocks
+    std::ofstream savefile(sutil::sampleDataFilePath("Saves/SAVE0.txt"), std::ios::out);
+    if (!savefile) std::cout << "failed to load savefiles" << std::endl;
+    else {
+        int savecnt = 0;
+        for (auto& mp : modelLst)
+        {
+            if (mp->get_type() == "Cube")
+            {
+                savecnt++;
+                savefile << " " << mp->get_center().x << " " << mp->get_center().y << " " << mp->get_center().z <<" "<< mp->get_collideBox().size.x << " " << mp->texture_id;
+            }
+        }
+        std::cerr << "Successfully saved " << savecnt << " Cubes" << std::endl;
+        savefile.close();
+    }
+    
+}
 void initCreature()
 {
     //Create a Player
@@ -2619,15 +2664,15 @@ int main( int argc, char* argv[] )
         //
         // Add basic models
         //
-        for(int i=0; i<10; i++) {
+        /*for(int i=0; i<10; i++) {
             for(int j=0; j<10; j++) {
                 modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, GRASS));
             }
         }
         modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
-        modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));
-
+        modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));*/
+        initData();
         modelLst.push_back(new cRect(
             make_float3( 32.0f, 0.0f, 0.0f ),
             make_float3( 0.0f, 0.0f, 16.0f ),
