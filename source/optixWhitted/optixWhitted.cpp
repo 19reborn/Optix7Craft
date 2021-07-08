@@ -367,12 +367,12 @@ public:
     CollideBox collideBox;
     ModelTexture texture_id;
 
-    cModel(const CollideBox& cb, ModelTexture tex_id): 
+    explicit cModel(const CollideBox& cb, ModelTexture tex_id): 
         collideBox(cb), texture_id(tex_id) {
         ID = ++OBJ_COUNT;
         set_map_modelAt();
     }
-    ~cModel() {
+    virtual ~cModel() {
         OBJ_COUNT--;
         clear_map_modelAt();
     }
@@ -588,7 +588,7 @@ class cSphere: public cModel {
 public:
     GeometryData::Sphere args;
 
-    cSphere(float3 c, float r, ModelTexture tex_id=NONE): 
+    explicit cSphere(float3 c, float r, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {r, r, r}), tex_id) {
         args.center = c;
         args.radius = r;
@@ -646,7 +646,7 @@ class cSphereShell: public cModel {
 public:
     SphereShell args;
 
-    cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
+    explicit cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {r2, r2, r2}), tex_id) {
         args.center = c;
         args.radius1 = r1;
@@ -711,14 +711,14 @@ class cCube : public cModel {
 public:
     Cube args;
 
-    cCube(float3 c, float s, ModelTexture tex_id=NONE): 
+    explicit cCube(float3 c, float s, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {s, s, s}), tex_id) {
         args.center = c;
         args.size = {s, s, s};
         collidable = true;
     }
 
-    cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
+    explicit cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, s), tex_id) {
         args.center = c;
         args.size = s;
@@ -761,7 +761,7 @@ class cCubeShell : public cModel {
 public:
     CubeShell args;
 
-    cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id = NONE) :
+    explicit cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id = NONE) :
         cModel(CollideBox(c, { s2, s2, s2 }), tex_id) {
         args.center = c;
         args.size1 = { s1, s1, s1 };
@@ -769,7 +769,7 @@ public:
         collidable = true;
     }
 
-    cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id) :
+    explicit cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id) :
         cModel(CollideBox(c, s2), tex_id) {
         args.center = c;
         args.size1 = s1;
@@ -814,7 +814,7 @@ public:
 public:
     Parallelogram args;
 
-    cRect(float3 v1, float3 v2, float3 anchor, ModelTexture tex_id=NONE):
+    explicit cRect(float3 v1, float3 v2, float3 anchor, ModelTexture tex_id=NONE):
         cModel(CollideBox(anchor, {1.f, 1.f, 1.f}) , tex_id) {
         args = {v1, v2, anchor};
     }
