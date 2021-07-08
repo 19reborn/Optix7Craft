@@ -96,7 +96,7 @@ extern "C" __global__ void __raygen__pinhole_camera()
 
     int i = params.samples_per_launch;
     do {
-        float2 subpixel_jitter = make_float2(rnd( seed ), rnd( seed ));
+        float2 subpixel_jitter =  make_float2(rnd(seed), rnd(seed));
 
         float2 d = ((make_float2(idx.x, idx.y) + subpixel_jitter) / make_float2(params.width, params.height)) * 2.f - 1.f;
         float3 ray_origin = camera->eye;
@@ -109,12 +109,12 @@ extern "C" __global__ void __raygen__pinhole_camera()
         sun_prd.seed = seed;
         sun_prd.done = false;
         sun_prd.attenuation = make_float3(1.0f);
-
+        sun_prd.emitted = make_float3(0.0f);
         // light from a light source or miss program
         sun_prd.radiance = make_float3(0.0f);
         // next ray to be traced
-        sun_prd.origin = make_float3(0.0f);
-        sun_prd.direction = make_float3(0.0f);
+        //sun_prd.origin = make_float3(0.0f);
+        //sun_prd.direction = make_float3(0.0f);
 
 
         //for (;;) {
@@ -135,6 +135,7 @@ extern "C" __global__ void __raygen__pinhole_camera()
                 u0,
                 u1);
 
+            result += sun_prd.emitted;
             result += sun_prd.radiance * sun_prd.attenuation;
 
        //     if (sun_prd.done) {

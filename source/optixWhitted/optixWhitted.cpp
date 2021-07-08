@@ -761,15 +761,15 @@ class cCubeShell : public cModel {
 public:
     CubeShell args;
 
-    cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id=NONE):
-        cModel(CollideBox(c, {s2, s2, s2}), tex_id) {
+    cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id = NONE) :
+        cModel(CollideBox(c, { s2, s2, s2 }), tex_id) {
         args.center = c;
-        args.size1 = {s1, s1, s1};
-        args.size2 = {s2, s2, s2};
+        args.size1 = { s1, s1, s1 };
+        args.size2 = { s2, s2, s2 };
         collidable = true;
     }
 
-    cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id): 
+    cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id) :
         cModel(CollideBox(c, s2), tex_id) {
         args.center = c;
         args.size1 = s1;
@@ -798,7 +798,7 @@ public:
     }
     float3 get_center() override {
         return args.center;
-    } 
+    }
     float get_horizontal_size() override {
         return std::max(args.size2.x, args.size2.z);
     }
@@ -808,7 +808,7 @@ public:
         collideBox.center = pos;
         set_map_modelAt();
     }
-}
+};
 
 class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
 public:
@@ -2833,7 +2833,7 @@ int main( int argc, char* argv[] )
     state.params.height = 768;
     sutil::CUDAOutputBufferType output_buffer_type = sutil::CUDAOutputBufferType::GL_INTEROP;
     sky.init();
-    sky.setSunTheta( 0/*DEFAULT_SUN_THETA*/);  // 0: noon, pi/2: sunset
+    sky.setSunTheta( DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
     sky.setSunPhi(DEFAULT_SUN_PHI);
     sky.setTurbidity(2.2f);
     //Split out sun for direct sampling
@@ -2912,11 +2912,11 @@ int main( int argc, char* argv[] )
         modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));*/
         initData();
-        /*modelLst.push_back(new cRect(
+        modelLst.push_back(new cRect(
             make_float3( 32.0f, 0.0f, 0.0f ),
             make_float3( 0.0f, 0.0f, 16.0f ),
             make_float3( -16.0f, 0.01f, -8.0f )
-        ));*/
+        ));
 
         initEntitySystem();
 

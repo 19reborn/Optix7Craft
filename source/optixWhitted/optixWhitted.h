@@ -265,8 +265,10 @@ struct SunPRD {
     float  importance;
     float3 attenuation;
     float3 radiance;
-    float3 origin;
-    float3 direction;
+    //float3 origin;
+    //float3 direction;
+    float3 emitted;
+    bool countEmitted;
 
     LightType type;
 };

@@ -18,17 +18,21 @@ static __device__ float3 get_normal(float t, float3 t0, float3 t1)
 static __device__ float2 get_coord(float3 relativeCoord, float3 size)
 {
     float2 uv;
-    if (fabs(relativeCoord.z) == size.z) {
+    if (fabs(fabs(relativeCoord.z) -size.z) <=1e-4) {
         uv.x = (relativeCoord.x + size.x) / (2 * size.x);
         uv.y = (relativeCoord.y + size.y) / (2 * size.y);
     }
-    else if (fabs(relativeCoord.x) == size.x) {
+    else if (fabs(fabs(relativeCoord.x) - size.x) <=1e-4) {
         uv.x = (relativeCoord.z + size.z) / (2 * size.z);
         uv.y = (relativeCoord.y + size.y) / (2 * size.y);
     }
-    else if (fabs(relativeCoord.y) == size.y) {
+    else if (fabs(fabs(relativeCoord.y) -size.y) <=1e-4) {
         uv.x = (relativeCoord.z + size.z) / (2 * size.z);
         uv.y = (relativeCoord.x + size.x) / (2 * size.x);
+    }
+    else {
+        uv.x = 0.0f;
+        uv.y = 0.0f;
     }
     return uv;
 }

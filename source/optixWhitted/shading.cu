@@ -217,7 +217,8 @@ static __forceinline__ __device__ float3 traceSun(
     float3                 origin,
     float3                 direction,
     int                    depth,
-    float                  importance
+    float                  importance,
+    float3                 attenuation
 )
 {
     // TODO: deduce stride from num ray-types passed in params
@@ -226,6 +227,7 @@ static __forceinline__ __device__ float3 traceSun(
     SunPRD sun_prd;
     sun_prd.depth = depth;
     sun_prd.importance = importance;
+    sun_prd.attenuation = attenuation;
     unsigned int u0, u1;
     packPointer(&sun_prd, u0, u1);
     optixTrace(
@@ -243,7 +245,7 @@ static __forceinline__ __device__ float3 traceSun(
         u0,
         u1);
 
-    return sun_prd.radiance;
+    return sun_prd.radiance * sun_prd.attenuation ;
 }
 static
 __device__ void phongShadowed()
@@ -260,7 +262,7 @@ __device__ void phongShade( float3 p_Kd,
                             float3 p_Ks,
                             float3 p_Kr,
                             float  p_phong_exp,
-                            float3 p_normal )
+                            float3 p_normal)
 {
     const float3 ray_orig = optixGetWorldRayOrigin();
     const float3 ray_dir  = optixGetWorldRayDirection();
@@ -268,12 +270,20 @@ __device__ void phongShade( float3 p_Kd,
 
     SunPRD* sun_prd = getPRD<SunPRD>();
 
-    float3 hit_point = ray_orig + ray_t * ray_dir;
+    if (sun_prd->countEmitted)
+        sun_prd->emitted = make_float3(0.0f);//物体本身发光
+    else
+        sun_prd->emitted = make_float3(0.0f);
     sun_prd->attenuation *= p_Kd;
+    sun_prd->countEmitted = false;
+
+    float3 hit_point = ray_orig + ray_t * ray_dir;
+
     // ambient contribution
+
     float3 result = p_Ka * params.ambient_light_color;
     
-
+    
     //sun light
     DirectionalLight sun = params.sun;
 
@@ -286,21 +296,23 @@ __device__ void phongShade( float3 p_Kd,
     onb.inverse_transform(w_in);
     //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
 
-    sun_prd->origin = hit_point;
-    sun_prd->direction = w_in;
+    //sun_prd->origin = hit_point;
+    //sun_prd->direction = w_in;
 
-    sun_prd->attenuation *= p_Kd;
+    //sun_prd->attenuation *= 1;
 
     // Add direct light sample weighted by shadow term and 1/probability.
     // The pdf for a directional area light is 1/solid_angle.
 
+    // 增加软阴影
     const float3 light_center = hit_point + sun.direction;
     const float r1 = rnd(sun_prd->seed);
     const float r2 = rnd(sun_prd->seed);
     const float2 disk_sample = square_to_disk(make_float2(r1, r2));
     const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
     float3 L = normalize(jittered_pos - hit_point);
-    float Ldist = length(jittered_pos - hit_point);
+
+    //float3 L = normalize(sun.direction);
 
     const float NdotL = dot(p_normal, L);
     if (NdotL > 0.0f) {
@@ -312,7 +324,7 @@ __device__ void phongShade( float3 p_Kd,
             hit_point,
             L,
             0.01f,
-            Ldist,
+            1e16, //平行光从无限远处射出
             0.0f,
             OptixVisibilityMask(1),
             OPTIX_RAY_FLAG_NONE,
@@ -328,6 +340,7 @@ __device__ void phongShade( float3 p_Kd,
             const float solid_angle = sun.radius * sun.radius * M_PIf;
 
             float3 Lc = light_attenuation * tonemap(sun.color * solid_angle);
+
             result += p_Kd * NdotL * Lc;
 
             float3 H = normalize(L - ray_dir);
@@ -339,6 +352,8 @@ __device__ void phongShade( float3 p_Kd,
             }
         }
     }
+    
+    //反射
     if (fmaxf(p_Kr) > 0)
     {
         // ray tree attenuation
@@ -350,7 +365,7 @@ __device__ void phongShade( float3 p_Kd,
         if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
         {
             float3 R = reflect(ray_dir, p_normal);
-            result += p_Kr * traceSun(hit_point, R, new_depth, new_importance);
+            result += p_Kr * traceSun(hit_point+p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation);
         }
     }
 
@@ -578,8 +593,7 @@ extern "C" __global__ void __closesthit__glass_radiance()
             {
                 //color = traceRadianceRay(bhp, t, depth+1, importance);
                 //sun_prd->depth += 1;
-                color = traceSun(bhp, t, depth + 1, importance);
-          
+                color = traceSun(bhp, t, depth + 1, importance,sun_prd->attenuation);
             }
             result += (1.0f - reflection) * glass.refraction_color * color;
         }
@@ -604,7 +618,7 @@ extern "C" __global__ void __closesthit__glass_radiance()
         if ( importance > glass.importance_cutoff )
         {
            //color = traceRadianceRay( fhp, r, depth+1, importance );
-           color = traceSun(fhp, r, depth + 1, importance);
+           color = traceSun(fhp, r, depth + 1, importance,sun_prd->attenuation);
 
         }
     }
@@ -612,6 +626,7 @@ extern "C" __global__ void __closesthit__glass_radiance()
 
     result = result * beer_attenuation;
 
+    //printf("%f,%f,%f\n", result.x, result.y, result.z);
     sun_prd->radiance = result;
 
     unsigned int u0, u1;
@@ -670,7 +685,6 @@ extern "C" __global__ void __closesthit__texture_radiance()
 
     //得到交点位于立方体的哪个面（y轴是天空方向）
     cube_face face = cube_face(optixGetAttribute_5());
-
     if (sbt_data->has_normal) {
         shade_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y)) * 2 - 1.0f;
         //printf("%f,%f,%f\n", shade_normal.x, shade_normal.y, shade_normal.z);
@@ -725,6 +739,14 @@ extern "C" __global__ void __closesthit__transparency_radiance()
     const float  ray_t    = optixGetRayTmax();
 
     SunPRD* sun_prd = getPRD<SunPRD>();
+    if (sun_prd->countEmitted)
+        sun_prd->emitted = make_float3(0.0f);//物体本身发光
+    else
+        sun_prd->emitted = make_float3(0.0f);
+
+    //sun_prd->attenuation *= p_Kd;
+    sun_prd->countEmitted = false;
+
     float3 t;                                    
     float3 r;
     float3 hit_point = ray_orig + ray_t * ray_dir;
@@ -737,47 +759,15 @@ extern "C" __global__ void __closesthit__transparency_radiance()
     float3 world_shade_normal = normalize(optixTransformNormalFromObjectToWorldSpace(shade_normal));
     front_hit_point += params.scene_epsilon * shade_normal;
     back_hit_point -= params.scene_epsilon * shade_normal;
-    float3 p_normal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_shade_normal);
 
     const float3 fhp = optixTransformPointFromObjectToWorldSpace(front_hit_point);
     const float3 bhp = optixTransformPointFromObjectToWorldSpace(back_hit_point);
 
 
-    // ambient contribution
-    //float3 result = p_Ka * params.ambient_light_color;
-    
-
-    //sun light
-    DirectionalLight sun = params.sun;
-
-    const float z1 = rnd(sun_prd->seed);
-    const float z2 = rnd(sun_prd->seed);
-
-    float3 w_in;
-    cosine_sample_hemisphere(z1, z2, w_in);
-    const Onb onb(p_normal);
-    onb.inverse_transform(w_in);
-    //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
-
-    sun_prd->origin = hit_point;
-    sun_prd->direction = w_in;
-
-    // Add direct light sample weighted by shadow term and 1/probability.
-    // The pdf for a directional area light is 1/solid_angle.
-
-    const float3 light_center = hit_point + sun.direction;
-    const float r1 = rnd(sun_prd->seed);
-    const float r2 = rnd(sun_prd->seed);
-    const float2 disk_sample = square_to_disk(make_float2(r1, r2));
-    const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
-    float3 L = normalize(jittered_pos - hit_point);
-    float Ldist = length(jittered_pos - hit_point);
-
     float reflection = 1.0f;
     float3 result = make_float3(0.0f);
 
     const int depth = sun_prd->depth;
-
     float3 beer_attenuation;
     if (dot(world_shade_normal, ray_dir) > 0)
     {
@@ -788,7 +778,6 @@ extern "C" __global__ void __closesthit__transparency_radiance()
     {
         beer_attenuation = make_float3(1);
     }
-
     // refraction
     // compare depth to max_depth - 1 to leave room for a potential shadow ray trace
     if (depth < min(glass.refraction_maxdepth, params.max_depth - 1))
@@ -815,13 +804,13 @@ extern "C" __global__ void __closesthit__transparency_radiance()
             float3 color = glass.cutoff_color;
             if (importance > glass.importance_cutoff)
             {
-                color = traceSun(bhp, t, depth + 1, importance);
+                color = traceSun(bhp, t, depth + 1, importance,sun_prd->attenuation);
             }
             result += (1.0f - reflection) * glass.refraction_color * color;
         }
         // else TIR
     } // else reflection==1 so refraction has 0 weight
-
+    //printf("%f,%f,%f\n", result.x, result.y, result.z);
     // reflection
     // compare depth to max_depth - 1 to leave room for a potential shadow ray trace
     float3 color = glass.cutoff_color;
@@ -835,7 +824,7 @@ extern "C" __global__ void __closesthit__transparency_radiance()
             * luminance(glass.reflection_color * beer_attenuation);
         if (importance > glass.importance_cutoff)
         {
-            color = traceSun(fhp, r, depth + 1, importance);
+            color = traceSun(fhp, r, depth + 1, importance,sun_prd->attenuation);
         }
     }
     result += reflection * glass.reflection_color * color;
@@ -906,7 +895,6 @@ extern "C" __global__ void __closesthit__transparency_radiance()
     */
 
 
-  
     sun_prd->radiance = result;
     unsigned int u0, u1;
     packPointer(&sun_prd, u0, u1);
@@ -980,7 +968,12 @@ extern "C" __global__ void __closesthit__water_radiance()
     SunPRD* sun_prd = getPRD<SunPRD>();
 
     float3 hit_point = ray_orig + ray_t * ray_dir;
+    if (sun_prd->countEmitted)
+        sun_prd->emitted = make_float3(0.0f);//物体本身发光
+    else
+        sun_prd->emitted = make_float3(0.0f);
     sun_prd->attenuation *= p_Kd;
+    sun_prd->countEmitted = false;
     // ambient contribution
     float3 result = p_Ka * params.ambient_light_color;
 
@@ -997,8 +990,8 @@ extern "C" __global__ void __closesthit__water_radiance()
     onb.inverse_transform(w_in);
     //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
 
-    sun_prd->origin = hit_point;
-    sun_prd->direction = w_in;
+    //sun_prd->origin = hit_point;
+    //sun_prd->direction = w_in;
 
 
     // Add direct light sample weighted by shadow term and 1/probability.
@@ -1010,7 +1003,6 @@ extern "C" __global__ void __closesthit__water_radiance()
     const float2 disk_sample = square_to_disk(make_float2(r1, r2));
     const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
     float3 L = normalize(jittered_pos - hit_point);
-    float Ldist = length(jittered_pos - hit_point);
 
 
     const float NdotL = dot(p_normal, L);
@@ -1023,7 +1015,7 @@ extern "C" __global__ void __closesthit__water_radiance()
             hit_point,
             L,
             0.01f,
-            Ldist,
+            1e16,
             0.0f,
             OptixVisibilityMask(1),
             OPTIX_RAY_FLAG_NONE,
@@ -1062,7 +1054,7 @@ extern "C" __global__ void __closesthit__water_radiance()
         if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
         {
             float3 R = reflect(ray_dir, p_normal);
-            result += p_Kr * traceSun(hit_point, R, new_depth, new_importance);
+            result += p_Kr * traceSun(hit_point+p_normal*params.scene_epsilon, R, new_depth, new_importance,sun_prd->attenuation);
         }
     }
 
@@ -1075,7 +1067,7 @@ extern "C" __global__ void __closesthit__water_radiance()
         float3 R;
         refract(R, ray_dir, p_normal, water.refractivity_n);
         result *= (1.0f - local_transparency);
-        result += local_transparency * traceSun(hit_point,R,sun_prd->depth + 1, sun_prd->importance);
+        result += local_transparency * traceSun(hit_point + p_normal * params.scene_epsilon,R,sun_prd->depth + 1, sun_prd->importance, sun_prd->attenuation);
     }
     /*
     // compute Point light
