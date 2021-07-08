@@ -329,6 +329,8 @@ enum ModelTexture { // 记得也填get_texture_name
     IRON,
     GLASS,
     WATER,
+    BARK,
+    LEAF,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -343,6 +345,8 @@ string get_texture_name(ModelTexture tex_id) {
         case IRON: return "IRON";
         case GLASS: return "GLASS";
         case WATER: return "WATER";
+        case BARK: return "BARK";
+        case LEAF: return "LEAF";
         default: return "ERROR";
     }
 }
@@ -2793,6 +2797,8 @@ int main( int argc, char* argv[] )
     load_texture_integrated("Ground037", GRASS);
     load_texture("Ground786.jpg", "GRASS_side_diffuse");
     load_texture_integrated("Metal003", IRON);
+    load_texture_integrated("bark1", BARK);
+    load_texture_integrated("Grass001", LEAF);
     //
     // Parse command line options
     //
