@@ -113,7 +113,7 @@ bool              model_need_update = false;
 
 
 //Particles settings
-bool              isParticle = false;
+bool              isParticle = true;
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -453,6 +453,70 @@ void cModel::clear_map_modelAt() {
     }
 }
 
+struct Particle;
+
+// 仅限cube使用！
+template<class T>
+void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx, T* pmodel) {
+    if(pmodel == NULL || pmodel->get_type() != "Cube") {
+        std::cerr << "[WARNING] Wrong set_hitgroup call!\n";
+        return;
+    }
+    int texture_id = pmodel->texture_id;
+    // 以上啥也没干，预处理
+
+    if(texture_id == NONE) {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.radiance_metal_cube_prog_group,
+                &hgr[idx]));
+    } else {    // 这里不确定是不是else就行了
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+                state.radiance_texture_cube_prog_group,
+                &hgr[idx]));
+    }
+
+    hgr[idx].data.geometry.cube = pmodel->args;
+
+    // 贴图在这里修改
+    if (texture_id == NONE) {
+        hgr[idx].data.shading.metal = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
+                { 0.9f, 0.9f, 0.9f },   // Ks
+                { 0.8f, 0.8f, 0.8f },   // Kr
+                64,                     // phong_exp
+        };
+    } else if(texture_id == WOOD) {
+        //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
+        hgr[idx].data.shading.metal = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
+                { 0.9f, 0.9f, 0.9f },   // Ks
+                { 0.01f, 0.01f, 0.01f },   // Kr 
+                64,                     // phong_exp
+        };
+        hgr[idx].data.has_diffuse = true;
+        hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.has_normal = true;
+        hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
+        hgr[idx].data.has_roughness = true;
+        hgr[idx].data.roughness_map = texture_list[textures["wood_roughness"]]->textureObject;
+    }
+    
+    if(texture_id == NONE) {
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.occlusion_metal_cube_prog_group,
+            &hgr[idx + 1]));
+    } else {    // 这里同上
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            state.occlusion_texture_cube_prog_group,
+            &hgr[idx + 1]));
+    }
+
+    hgr[idx + 1].data.geometry.cube = pmodel->args;
+
+}
+
 class cSphere: public cModel {
 public:
     GeometryData::Sphere args;
@@ -610,52 +674,7 @@ public:
         return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
     }
     void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) override {
-        if (texture_id == NONE) {
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.radiance_metal_cube_prog_group,
-                &hgr[idx]));
-            hgr[idx].data.geometry.cube = args;
-            hgr[idx].data.shading.metal = {
-                    { 0.2f, 0.5f, 0.5f },   // Ka
-                    // { 0.2f, 0.7f, 0.8f },   // Kd
-                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
-                    { 0.9f, 0.9f, 0.9f },   // Ks
-                    { 0.8f, 0.8f, 0.8f },   // Kr
-                    64,                     // phong_exp
-            };
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.occlusion_metal_cube_prog_group,
-                &hgr[idx + 1]));
-            hgr[idx + 1].data.geometry.cube = args;
-        }
-        else if (texture_id == WOOD) { 
-            
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.radiance_texture_cube_prog_group,
-                &hgr[idx]));
-            hgr[idx].data.geometry.cube = args;
-            //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
-            hgr[idx].data.shading.metal = {
-                    { 0.2f, 0.5f, 0.5f },   // Ka
-                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
-                    { 0.9f, 0.9f, 0.9f },   // Ks
-                    { 0.01f, 0.01f, 0.01f },   // Kr 
-                    64,                     // phong_exp
-            };
-            hgr[idx].data.has_diffuse = true;
-            hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
-            hgr[idx].data.has_normal = true;
-            hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
-            hgr[idx].data.has_roughness = true;
-            hgr[idx].data.roughness_map = texture_list[textures["wood_roughness"]]->textureObject;
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.occlusion_texture_cube_prog_group,
-                &hgr[idx + 1]));
-            hgr[idx + 1].data.geometry.cube = args;
-        
-        }
-        // 这里应该改成一堆if
-     
+        set_hitgroup_cube_general(state, hgr, idx, this);
     }
     float3 get_center() override {
         return args.center;
@@ -677,7 +696,6 @@ public:
 
     cRect(float3 v1, float3 v2, float3 anchor, ModelTexture tex_id=NONE):
         cModel(CollideBox(anchor, {1.f, 1.f, 1.f}) , tex_id) {
-        std::cerr << "az!\n";
         args = {v1, v2, anchor};
     }
     string get_type() {return "Rect";}
@@ -834,6 +852,7 @@ struct Particle : public Entity {
     Cube args;
     Particle() { OBJ_COUNT++; }
     ~Particle() { OBJ_COUNT--; }
+    string get_type() {return "Cube";}
     void set_bound(float result[6])
     {
         auto* aabb = reinterpret_cast<OptixAabb*>(result);
@@ -850,47 +869,7 @@ struct Particle : public Entity {
         return OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
     }
     void set_hitgroup(WhittedState& state, HitGroupRecord* hgr, int idx) {
-        if (texture_id == NONE) {
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.radiance_metal_cube_prog_group,
-                &hgr[idx]));
-            hgr[idx].data.geometry.cube = args;
-            hgr[idx].data.shading.metal = {
-                    { 0.2f, 0.5f, 0.5f },   // Ka
-                    // { 0.2f, 0.7f, 0.8f },   // Kd
-                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
-                    { 0.9f, 0.9f, 0.9f },   // Ks
-                    { 0.5f, 0.5f, 0.5f },   // Kr
-                    64,                     // phong_exp
-            };
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.occlusion_metal_cube_prog_group,
-                &hgr[idx + 1]));
-            hgr[idx + 1].data.geometry.cube = args;
-        }
-        else if (texture_id == WOOD) {
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.radiance_texture_cube_prog_group,
-                &hgr[idx]));
-            hgr[idx].data.geometry.cube = args;
-            hgr[idx].data.shading.metal = {
-                    { 0.2f, 0.5f, 0.5f },   // Ka
-                    // { 0.2f, 0.7f, 0.8f },   // Kd
-                    { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
-                    { 0.9f, 0.9f, 0.9f },   // Ks
-                    { 0.5f, 0.5f, 0.5f },   // Kr
-                    64,                     // phong_exp
-            };
-            hgr[idx].data.has_diffuse = true;
-            hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
-            hgr[idx].data.has_normal = false;
-            hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
-            OPTIX_CHECK(optixSbtRecordPackHeader(
-                state.occlusion_texture_cube_prog_group,
-                &hgr[idx + 1]));
-            hgr[idx + 1].data.geometry.cube = args;
-
-        }
+        set_hitgroup_cube_general(state, hgr, idx, this);
     }
     void dX(const float3& vec) override{
         pos += vec;
