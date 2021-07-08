@@ -183,49 +183,6 @@ bool first_launch = true;
 
 //------------------------------------------------------------------------------
 //
-//  Texture loading Functions
-//
-//------------------------------------------------------------------------------
-
-
-
-void load_texture(std::string file_name, const std::string & name) {
-    std::string relaPath = "Textures/" + file_name;
-    std::string textureFilename(sutil::sampleDataFilePath(relaPath.c_str()));
-    // std::cerr << "[INFO] path: " << textureFilename << std::endl;
-    int2 res;
-    int   comp;
-    unsigned char* image = stbi_load(textureFilename.c_str(),
-        &res.x, &res.y, &comp, STBI_rgb_alpha);
-    if (image) {
-        texture_map* texture = new texture_map;
-        texture->resolution = res;
-        texture->pixel = (uint32_t*)image;
-
-        /* iw - actually, it seems that stbi loads the pictures
-           mirrored along the y axis - mirror them here */
-        for (int y = 0; y < res.y / 2; y++) {
-            uint32_t* line_y = texture->pixel + y * res.x;
-            uint32_t* mirrored_y = texture->pixel + (res.y - 1 - y) * res.x;
-            int mirror_y = res.y - 1 - y;
-            for (int x = 0; x < res.x; x++) {
-                std::swap(line_y[x], mirrored_y[x]);
-            }
-        }
-
-        texture_list.push_back(texture);
-        textures[name] = texture_list.size() - 1;
-
-    }
-    else {
-        std::cout
-            << "Could not load texture from " << file_name << "!"
-            << std::endl;
-    }
-}
-
-//------------------------------------------------------------------------------
-//
 //  Geometry Helper Functions
 //
 //------------------------------------------------------------------------------
@@ -357,13 +314,21 @@ float3 nearCeil(float3& a,float3& vec)
 //  Model Classes and Functions
 //
 //------------------------------------------------------------------------------
-enum ModelTexture {
+enum ModelTexture { // 记得也填get_texture_name
     NONE = 0,
     WOOD,
     PLANK,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
+string get_texture_name(ModelTexture tex_id) {
+    switch (tex_id) {
+        case NONE: return "IRON";   // 暂定，暂定
+        case WOOD: return "WOOD";
+        case PLANK: return "PLANK";
+        default: return "ERROR";
+    }
+}
 
 class cModel {
 public:
@@ -461,7 +426,7 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         std::cerr << "[WARNING] Wrong set_hitgroup call!\n";
         return;
     }
-    int texture_id = pmodel->texture_id;
+    ModelTexture texture_id = pmodel->texture_id;
     // 以上啥也没干，预处理
 
     if(texture_id == NONE) {
@@ -485,7 +450,7 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 { 0.8f, 0.8f, 0.8f },   // Kr
                 64,                     // phong_exp
         };
-    } else if(texture_id == WOOD) {
+    } else {
         //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
         hgr[idx].data.shading.metal = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
@@ -495,26 +460,11 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 64,                     // phong_exp
         };
         hgr[idx].data.has_diffuse = true;
-        hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
         hgr[idx].data.has_normal = true;
-        hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
+        hgr[idx].data.normal_map = texture_list[textures[ get_texture_name(texture_id) + "_normal" ]]->textureObject;
         hgr[idx].data.has_roughness = true;
-        hgr[idx].data.roughness_map = texture_list[textures["wood_roughness"]]->textureObject;
-    } else if(texture_id == PLANK) {
-        //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
-        hgr[idx].data.shading.metal = {
-                { 0.2f, 0.5f, 0.5f },   // Ka
-                { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
-                { 0.9f, 0.9f, 0.9f },   // Ks
-                { 0.01f, 0.01f, 0.01f },   // Kr 
-                64,                     // phong_exp
-        };
-        hgr[idx].data.has_diffuse = true;
-        hgr[idx].data.diffuse_map = texture_list[textures["plank_diffuse"]]->textureObject;
-        hgr[idx].data.has_normal = true;
-        hgr[idx].data.normal_map = texture_list[textures["plank_normal"]]->textureObject;
-        hgr[idx].data.has_roughness = true;
-        hgr[idx].data.roughness_map = texture_list[textures["plank_roughness"]]->textureObject;
+        hgr[idx].data.roughness_map = texture_list[textures[ get_texture_name(texture_id) + "_roughness" ]]->textureObject;
     }
     
     if(texture_id == NONE) {
@@ -783,6 +733,52 @@ bool get_model_at(float3 pos, cModel*& pmodel) {
     return false;
 }
 
+//------------------------------------------------------------------------------
+//
+//  Texture loading Functions
+//
+//------------------------------------------------------------------------------
+
+void load_texture(std::string file_name, const std::string & name) {
+    std::string relaPath = "Textures/" + file_name;
+    std::string textureFilename(sutil::sampleDataFilePath(relaPath.c_str()));
+    // std::cerr << "[INFO] path: " << textureFilename << std::endl;
+    int2 res;
+    int   comp;
+    unsigned char* image = stbi_load(textureFilename.c_str(),
+        &res.x, &res.y, &comp, STBI_rgb_alpha);
+    if (image) {
+        texture_map* texture = new texture_map;
+        texture->resolution = res;
+        texture->pixel = (uint32_t*)image;
+
+        /* iw - actually, it seems that stbi loads the pictures
+           mirrored along the y axis - mirror them here */
+        for (int y = 0; y < res.y / 2; y++) {
+            uint32_t* line_y = texture->pixel + y * res.x;
+            uint32_t* mirrored_y = texture->pixel + (res.y - 1 - y) * res.x;
+            int mirror_y = res.y - 1 - y;
+            for (int x = 0; x < res.x; x++) {
+                std::swap(line_y[x], mirrored_y[x]);
+            }
+        }
+
+        texture_list.push_back(texture);
+        textures[name] = texture_list.size() - 1;
+
+    }
+    else {
+        std::cout
+            << "Could not load texture from " << file_name << "!"
+            << std::endl;
+    }
+}
+
+void load_texture_intergrated(std::string file_prefix, ModelTexture tex) {
+    load_texture(string(file_prefix + "_1K_Color.jpg"), string(get_texture_name(tex) + "_diffuse"));
+    load_texture(string(file_prefix + "_1K_Normal.jpg"), string(get_texture_name(tex) + "_normal"));
+    load_texture(string(file_prefix + "_1K_Displacement.jpg"), string(get_texture_name(tex) + "_roughness"));
+}
 
 // --------------------------------------------- Entity System ---------------------------------------------
 
@@ -860,7 +856,7 @@ Creature* control = nullptr;//refer to the creature you are controlling.
 struct Particle : public Entity {
     static uint32_t OBJ_COUNT;
     int type = ENTITY_PARTICLE;
-    int texture_id = NONE;
+    ModelTexture texture_id = NONE;
     float beginTime = 0.f;
     float lifeLength = 0.f;
     Cube args;
@@ -896,7 +892,7 @@ uint32_t Particle::OBJ_COUNT = 0;
 std::vector<Particle*> ptcList;
 
 
-void createParticle(float3& pos, float3& acceleration, float3& size, float timePtc, int texture_id)
+void createParticle(float3& pos, float3& acceleration, float3& size, float timePtc, ModelTexture texture_id)
 {
     Particle* tmp = new Particle;
     if (tmp != nullptr)
@@ -947,7 +943,7 @@ void createParticles_planeBounce(float3& place, float powery, float powerxz, flo
     }
 }
 
-void createParticles_Blockdestroy(float3& place, int texture_id)
+void createParticles_Blockdestroy(float3& place, ModelTexture texture_id)
 {
     int number = 5 + rand() % 7;
     while (number--)
@@ -1228,15 +1224,6 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 768x768\n";
     std::cerr << "         --help | -h                 Print this usage message\n";
     exit( 0 );
-}
-
-string get_texture_name(ModelTexture tex_id) {
-    switch (tex_id) {
-        case NONE: return "IRON";   // 暂定，暂定
-        case WOOD: return "WOOD";
-        case PLANK: return "PLANK";
-        default: return "ERROR";
-    }
 }
 
 void displayHUD(float width, float height) {
@@ -2545,12 +2532,8 @@ int main( int argc, char* argv[] )
 
     // Image credit: CC0Textures.com (https://cc0textures.com/)
     // Licensed under the Creative Commons CC0 License.
-    load_texture("Wood049_1K_Color.jpg","wood_diffuse");
-    load_texture("Wood049_1K_Normal.jpg", "wood_normal");
-    load_texture("Wood049_1K_Displacement.jpg", "wood_roughness");
-    load_texture("Planks021_1K_Color.jpg","plank_diffuse");
-    load_texture("Planks021_1K_Normal.jpg", "plank_normal");
-    load_texture("Planks021_1K_Displacement.jpg", "plank_roughness");
+    load_texture_intergrated("Wood049", WOOD);
+    load_texture_intergrated("Planks021", PLANK);
     //
     // Parse command line options
     //
