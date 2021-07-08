@@ -360,6 +360,7 @@ float3 nearCeil(float3& a,float3& vec)
 enum ModelTexture {
     NONE = 0,
     WOOD,
+    PLANK,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -453,8 +454,6 @@ void cModel::clear_map_modelAt() {
     }
 }
 
-struct Particle;
-
 // 仅限cube使用！
 template<class T>
 void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx, T* pmodel) {
@@ -501,6 +500,21 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
         hgr[idx].data.has_roughness = true;
         hgr[idx].data.roughness_map = texture_list[textures["wood_roughness"]]->textureObject;
+    } else if(texture_id == PLANK) {
+        //如果使用贴图，只需调整ka(ambient), ks(specular), kr(reflection).
+        hgr[idx].data.shading.metal = {
+                { 0.2f, 0.5f, 0.5f },   // Ka
+                { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
+                { 0.9f, 0.9f, 0.9f },   // Ks
+                { 0.01f, 0.01f, 0.01f },   // Kr 
+                64,                     // phong_exp
+        };
+        hgr[idx].data.has_diffuse = true;
+        hgr[idx].data.diffuse_map = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.has_normal = true;
+        hgr[idx].data.normal_map = texture_list[textures["plank_normal"]]->textureObject;
+        hgr[idx].data.has_roughness = true;
+        hgr[idx].data.roughness_map = texture_list[textures["plank_roughness"]]->textureObject;
     }
     
     if(texture_id == NONE) {
@@ -916,19 +930,19 @@ void eraseParticle(Particle* pPar)
 }
 
 unsigned int jiangzemin = 19260817;
-void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize)
+void createParticles_planeBounce(float3& place, float powery, float powerxz, float r, int number, float maxSize, int texture_id)
 {
     while (number--)
     {
         float theta = fmod(rnd(jiangzemin), 2 * M_PI);
         float radiu = fmod(rnd(jiangzemin), r);
-        float randz = maxSize;//fmod(rand(), maxSize);
+        float randz = fmod(rnd(jiangzemin), maxSize);
         createParticle(
             place + make_float3(radiu * cos(theta), 0.f, radiu * sin(theta)),
             make_float3(radiu * cos(theta) * powerxz, powery, radiu * sin(theta) * powerxz),
             make_float3(randz, randz, randz),
-            0.5f,
-            NONE
+            0.3f,
+            texture_id
         );
     }
 }
@@ -947,7 +961,7 @@ void createParticles_Blockdestroy(float3& place, int texture_id)
             make_float3(breakX * 10.f, breakY * 10.f, breakZ * 10.f),
             make_float3(randz, randz, randz),
             0.5f,
-            NONE
+            texture_id
         );
     }
 }
@@ -1170,7 +1184,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
             model_need_update = true;
         }
         if (key == GLFW_KEY_T) {
-            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f);
+            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f, NONE);
         }
     }
     else if (action == GLFW_RELEASE)
@@ -1220,6 +1234,7 @@ string get_texture_name(ModelTexture tex_id) {
     switch (tex_id) {
         case NONE: return "IRON";   // 暂定，暂定
         case WOOD: return "WOOD";
+        case PLANK: return "PLANK";
         default: return "ERROR";
     }
 }
@@ -1999,54 +2014,58 @@ void syncCameraDataToSbt( WhittedState &state, const CameraData& camData )
 
 void createSBT( WhittedState &state)
 {
-    // Raygen program record
-    {
-        size_t sizeof_raygen_record = sizeof( RayGenRecord );
+    static bool first_createSBT = true;
+    if(first_createSBT) {
+        // Raygen program record
+        {
+            size_t sizeof_raygen_record = sizeof( RayGenRecord );
 
-        if(d_raygen_record_allocated) {
-            CUDA_CHECK( cudaFree((void*)d_raygen_record) );
-            d_raygen_record_allocated = false;
+            if(d_raygen_record_allocated) {
+                CUDA_CHECK( cudaFree((void*)d_raygen_record) );
+                d_raygen_record_allocated = false;
+            }
+
+            CUDA_CHECK( cudaMalloc(
+                    reinterpret_cast<void**>( &d_raygen_record ),
+                    sizeof_raygen_record ) );
+
+            d_raygen_record_allocated = true;
+
+            state.sbt.raygenRecord = d_raygen_record;
         }
 
-        CUDA_CHECK( cudaMalloc(
-                reinterpret_cast<void**>( &d_raygen_record ),
-                sizeof_raygen_record ) );
+        // Miss program record
+        {
+            size_t sizeof_miss_record = sizeof( MissRecord );
+        
+            if(d_miss_record_allocated) {
+                CUDA_CHECK(cudaFree((void*)d_miss_record));
+                d_miss_record_allocated = false;
+            }
 
-        d_raygen_record_allocated = true;
+            CUDA_CHECK( cudaMalloc(
+                    reinterpret_cast<void**>( &d_miss_record ),
+                    sizeof_miss_record*RAY_TYPE_COUNT ) );
 
-        state.sbt.raygenRecord = d_raygen_record;
-    }
+            d_miss_record_allocated = true;
 
-    // Miss program record
-    {
-        size_t sizeof_miss_record = sizeof( MissRecord );
-     
-        if(d_miss_record_allocated) {
-            CUDA_CHECK(cudaFree((void*)d_miss_record));
-            d_miss_record_allocated = false;
+            MissRecord ms_sbt[RAY_TYPE_COUNT];
+            optixSbtRecordPackHeader( state.radiance_miss_prog_group, &ms_sbt[0] );
+            optixSbtRecordPackHeader( state.occlusion_miss_prog_group, &ms_sbt[1] );
+            ms_sbt[1].data = ms_sbt[0].data = { 0.34f, 0.55f, 0.85f };
+
+            CUDA_CHECK( cudaMemcpy(
+                    reinterpret_cast<void*>( d_miss_record ),
+                    ms_sbt,
+                    sizeof_miss_record*RAY_TYPE_COUNT,
+                    cudaMemcpyHostToDevice
+            ) );
+
+            state.sbt.missRecordBase          = d_miss_record;
+            state.sbt.missRecordCount         = RAY_TYPE_COUNT;
+            state.sbt.missRecordStrideInBytes = static_cast<uint32_t>( sizeof_miss_record );
         }
-
-        CUDA_CHECK( cudaMalloc(
-                reinterpret_cast<void**>( &d_miss_record ),
-                sizeof_miss_record*RAY_TYPE_COUNT ) );
-
-        d_miss_record_allocated = true;
-
-        MissRecord ms_sbt[RAY_TYPE_COUNT];
-        optixSbtRecordPackHeader( state.radiance_miss_prog_group, &ms_sbt[0] );
-        optixSbtRecordPackHeader( state.occlusion_miss_prog_group, &ms_sbt[1] );
-        ms_sbt[1].data = ms_sbt[0].data = { 0.34f, 0.55f, 0.85f };
-
-        CUDA_CHECK( cudaMemcpy(
-                reinterpret_cast<void*>( d_miss_record ),
-                ms_sbt,
-                sizeof_miss_record*RAY_TYPE_COUNT,
-                cudaMemcpyHostToDevice
-        ) );
-
-        state.sbt.missRecordBase          = d_miss_record;
-        state.sbt.missRecordCount         = RAY_TYPE_COUNT;
-        state.sbt.missRecordStrideInBytes = static_cast<uint32_t>( sizeof_miss_record );
+        first_createSBT = false;
     }
 
     // Hitgroup program record
@@ -2257,6 +2276,11 @@ void updateCreature(float dt)//the motion of entities in dt time
             {
                 if (ent->velocity.y <= 0)
                 {
+                    cModel* entCollideATBlockhere = nullptr;
+                    if (get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
+                    {
+                        createParticles_planeBounce(ent->box.center - ent->box.size - make_float3(0.2f,0.f,0.2f), -0.4 * ent->velocity.y, 4.f, 2, 10, 0.01f, entCollideATBlockhere->texture_id);
+                    }
                     ent->isOnGround = true;
                 }
                 ent->dy(-ent->velocity.y * dt);
@@ -2529,6 +2553,9 @@ int main( int argc, char* argv[] )
     load_texture("Wood049_1K_Color.jpg","wood_diffuse");
     load_texture("Wood049_1K_Normal.jpg", "wood_normal");
     load_texture("Wood049_1K_Displacement.jpg", "wood_roughness");
+    load_texture("Planks021_1K_Color.jpg","plank_diffuse");
+    load_texture("Planks021_1K_Normal.jpg", "plank_normal");
+    load_texture("Planks021_1K_Displacement.jpg", "plank_roughness");
     //
     // Parse command line options
     //
