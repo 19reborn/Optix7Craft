@@ -2525,7 +2525,7 @@ int main( int argc, char* argv[] )
     sun.casts_shadow = 1;
 
 
-    // Image credit: CC0Textures.com (https://cc0textures.com/view.php?tex=Bricks12)
+    // Image credit: CC0Textures.com (https://cc0textures.com/)
     // Licensed under the Creative Commons CC0 License.
     load_texture("Wood049_1K_Color.jpg","wood_diffuse");
     load_texture("Wood049_1K_Normal.jpg", "wood_normal");
