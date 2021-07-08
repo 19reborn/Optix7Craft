@@ -495,7 +495,12 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 64,                     // phong_exp
         };
         hgr[idx].data.has_diffuse = true;
-        hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_y_up = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_y_down = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_x_up = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_x_down = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_z_up = texture_list[textures["wood_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_z_down = texture_list[textures["wood_diffuse"]]->textureObject;
         hgr[idx].data.has_normal = true;
         hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
         hgr[idx].data.has_roughness = true;
@@ -510,7 +515,12 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 64,                     // phong_exp
         };
         hgr[idx].data.has_diffuse = true;
-        hgr[idx].data.diffuse_map = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_y_up = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_y_down = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_x_up = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_x_down = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_z_up = texture_list[textures["plank_diffuse"]]->textureObject;
+        hgr[idx].data.diffuse_map_z_down = texture_list[textures["plank_diffuse"]]->textureObject;
         hgr[idx].data.has_normal = true;
         hgr[idx].data.normal_map = texture_list[textures["plank_normal"]]->textureObject;
         hgr[idx].data.has_roughness = true;
@@ -1944,7 +1954,7 @@ void createPipeline( WhittedState &state )
     state.pipeline_compile_options = {
             false,                                                  // usesMotionBlur
             OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS,          // traversableGraphFlags
-            5,    /* RadiancePRD uses 5 payloads */                 // numPayloadValues
+            6,    /* RadiancePRD uses 5 payloads */                 // numPayloadValues
             6,    /* Parallelogram intersection uses 5 attrs */     // numAttributeValues
             OPTIX_EXCEPTION_FLAG_NONE,                              // exceptionFlags
             "params"                                                // pipelineLaunchParamsVariableName

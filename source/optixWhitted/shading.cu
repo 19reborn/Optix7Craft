@@ -668,16 +668,41 @@ extern "C" __global__ void __closesthit__texture_radiance()
     float2 coord = make_float2(
         int_as_float(optixGetAttribute_3()),
         int_as_float(optixGetAttribute_4()));
-    
+
+    //得到交点位于立方体的哪个面（y轴是天空方向）
+    cube_face face = cube_face(optixGetAttribute_5());
+
     if (sbt_data->has_normal) {
-        shade_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y)*2 -1.0f ) ;
+        shade_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y)) * 2 - 1.0f;
+        //printf("%f,%f,%f\n", shade_normal.x, shade_normal.y, shade_normal.z);
+        if (face == y_up || face == y_down) {
+            shade_normal = make_float3(shade_normal.y, shade_normal.z, shade_normal.x);
+            //printf("%f,%f,%f\n", shade_normal.x, shade_normal.y, shade_normal.z);
+        }
+        else if (face ==x_up || face ==x_down)
+            shade_normal = make_float3(shade_normal.z, shade_normal.x, shade_normal.y);
+        else {
+            shade_normal = make_float3(shade_normal.x, shade_normal.y, shade_normal.z);
+        }
     }
     if (sbt_data->has_diffuse) {
-        phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map, coord.x, coord.y));
+        if(face == y_up)
+            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_y_up, coord.x, coord.y));
+        else if (face == y_down)
+            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_y_down, coord.x, coord.y));
+        if (face == x_up)
+            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_x_up, coord.x, coord.y));
+        else if (face == x_down)
+            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_x_down, coord.x, coord.y));
+        if (face == z_up)
+            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_z_up, coord.x, coord.y));
+        else if (face == z_down)
+            phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_z_down, coord.x, coord.y));
     }
     if (sbt_data->has_roughness) {
         phong.phong_exp = 1.0f / (tex2D<float>(sbt_data->roughness_map, coord.x, coord.y));
     }
+    //normalize(shade_normal);
     //float3 world_geo_normal = normalize(optixTransformNormalFromObjectToWorldSpace(geometry_normal));
     float3 world_shade_normal = normalize(optixTransformNormalFromObjectToWorldSpace(shade_normal));
     float3 ffnormal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_shade_normal);

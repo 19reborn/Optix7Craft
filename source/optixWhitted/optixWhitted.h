@@ -210,7 +210,12 @@ struct HitGroupData
     } shading;    
 
     bool  has_diffuse;
-    cudaTextureObject_t diffuse_map;
+    cudaTextureObject_t diffuse_map_y_up;
+    cudaTextureObject_t diffuse_map_y_down;
+    cudaTextureObject_t diffuse_map_x_up;
+    cudaTextureObject_t diffuse_map_x_down;
+    cudaTextureObject_t diffuse_map_z_up;
+    cudaTextureObject_t diffuse_map_z_down;
     bool  has_normal;
     cudaTextureObject_t  normal_map;
     bool  has_roughness;
@@ -262,4 +267,14 @@ struct texture_map {
     int2     resolution{ -1 };
     
     cudaTextureObject_t textureObject;
+};
+
+enum cube_face
+{
+    x_up,
+    x_down,
+    y_up,
+    y_down,
+    z_up,
+    z_down
 };
