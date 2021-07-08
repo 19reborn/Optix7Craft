@@ -676,9 +676,9 @@ extern "C" __global__ void __closesthit__texture_radiance()
     if (sbt_data->has_roughness) {
         phong.phong_exp = 1.0f / (tex2D<float>(sbt_data->roughness_map, coord.x, coord.y));
     }
-    float3 world_geo_normal = normalize(optixTransformNormalFromObjectToWorldSpace(geometry_normal));
+    //float3 world_geo_normal = normalize(optixTransformNormalFromObjectToWorldSpace(geometry_normal));
     float3 world_shade_normal = normalize(optixTransformNormalFromObjectToWorldSpace(shade_normal));
-    float3 ffnormal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_geo_normal);
+    float3 ffnormal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_shade_normal);
 
     phongShade(phong.Kd, phong.Ka, phong.Ks, phong.Kr, phong.phong_exp, ffnormal);
 

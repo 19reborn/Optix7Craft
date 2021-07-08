@@ -641,7 +641,7 @@ public:
             };
             hgr[idx].data.has_diffuse = true;
             hgr[idx].data.diffuse_map = texture_list[textures["wood_diffuse"]]->textureObject;
-            hgr[idx].data.has_normal = false;
+            hgr[idx].data.has_normal = true;
             hgr[idx].data.normal_map = texture_list[textures["wood_normal"]]->textureObject;
             hgr[idx].data.has_roughness = true;
             hgr[idx].data.roughness_map = texture_list[textures["wood_roughness"]]->textureObject;
