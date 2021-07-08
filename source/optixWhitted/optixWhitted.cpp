@@ -469,7 +469,15 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
             hgr[idx].data.shading.metal.Kr = {0.6f, 0.6f, 0.6f};
         }
         hgr[idx].data.has_diffuse = true;
-        hgr[idx].data.diffuse_map = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
+        
+        // 默认六面都一样
+        hgr[idx].data.diffuse_map_y_up = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
+        hgr[idx].data.diffuse_map_y_down = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
+        hgr[idx].data.diffuse_map_x_up = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
+        hgr[idx].data.diffuse_map_x_down = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
+        hgr[idx].data.diffuse_map_z_up = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
+        hgr[idx].data.diffuse_map_z_down = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
+
         if(texture_id == IRON) {
             hgr[idx].data.has_normal = false;
         } else {
@@ -2600,8 +2608,8 @@ int main( int argc, char* argv[] )
         // Add basic models
         //
         for(int i=0; i<10; i++) {
-            for(int j=0; j<3; j++) {
-                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f));
+            for(int j=0; j<10; j++) {
+                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, DIRT));
             }
         }
         modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
