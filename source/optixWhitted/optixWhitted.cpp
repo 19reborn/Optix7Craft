@@ -761,15 +761,15 @@ class cCubeShell : public cModel {
 public:
     CubeShell args;
 
-    cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id=NONE):
-        cModel(CollideBox(c, {s2, s2, s2}), tex_id) {
+    cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id = NONE) :
+        cModel(CollideBox(c, { s2, s2, s2 }), tex_id) {
         args.center = c;
-        args.size1 = {s1, s1, s1};
-        args.size2 = {s2, s2, s2};
+        args.size1 = { s1, s1, s1 };
+        args.size2 = { s2, s2, s2 };
         collidable = true;
     }
 
-    cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id): 
+    cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id) :
         cModel(CollideBox(c, s2), tex_id) {
         args.center = c;
         args.size1 = s1;
@@ -798,7 +798,7 @@ public:
     }
     float3 get_center() override {
         return args.center;
-    } 
+    }
     float get_horizontal_size() override {
         return std::max(args.size2.x, args.size2.z);
     }
@@ -808,9 +808,9 @@ public:
         collideBox.center = pos;
         set_map_modelAt();
     }
-}
+};
 
-class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
+ class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
 public:
     Parallelogram args;
 
