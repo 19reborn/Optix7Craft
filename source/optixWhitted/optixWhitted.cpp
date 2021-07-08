@@ -87,7 +87,7 @@ float lastframe = 0.f;
 float deltatime = 0.f;
 
 //Keyboard mapping
-map<char, bool>   key_value;
+unordered_map<char, bool>   key_value;
 int wscnt = 0, adcnt = 0, sccnt = 0;
 bool sprint = false;
 
@@ -101,7 +101,7 @@ bool switchcam = true; //Whenever you wanna change printer control, give this bo
 
 // Texture 
 std::vector<texture_map*>      texture_list;
-std::map<std::string, int> textures;
+std::unordered_map<std::string, size_t> textures;
 std::vector<cudaArray_t>         textureArrays;
 
 // Mouse state
@@ -198,33 +198,33 @@ inline float pow2(float f) {
     return f*f;
 }
 
-float calc_distance(float3 a, float3 b) {
+inline float calc_distance(float3 a, float3 b) {
     return sqrt(pow2(a.x - b.x) + pow2(a.y - b.y) + pow2(a.z - b.z));
 }
-float cceil(float f)
+inline float cceil(float f)
 {
     if (f == ceil(f)) return f + 1.f;
     return ceil(f);
 }
-float ffloor(float f )
+inline float ffloor(float f )
 {
     if (f == floor(f)) return f - 1.f;
     return floor(f);
 }
-float fsign(float f)
+inline float fsign(float f)
 {
     if (f > 0) return 1.f;
     return -1.f;
 }
-float3 f3ceil(float3& a)
+inline float3 f3ceil(float3& a)
 {
     return make_float3(cceil(a.x), cceil(a.y), cceil(a.z));
 }
-float3 f3floor(float3& a)
+inline float3 f3floor(float3& a)
 {
     return make_float3(ffloor(a.x), ffloor(a.y), ffloor(a.z));
 }
-float3 f3abs(float3& a)
+inline float3 f3abs(float3& a)
 {
     return make_float3(fabs(a.x), fabs(a.y), fabs(a.z));
 }
@@ -319,8 +319,7 @@ float3 nearCeil(float3& a,float3& vec)
 }
 float sunAngleScaling(float f)
 {
-    return fmod(f, 2 * M_PI);
-
+    return (float)fmod(f, 2 * M_PI);
 }
 //------------------------------------------------------------------------------
 //
@@ -367,12 +366,12 @@ public:
     CollideBox collideBox;
     ModelTexture texture_id;
 
-    cModel(const CollideBox& cb, ModelTexture tex_id): 
+    explicit cModel(const CollideBox& cb, ModelTexture tex_id): 
         collideBox(cb), texture_id(tex_id) {
         ID = ++OBJ_COUNT;
         set_map_modelAt();
     }
-    ~cModel() {
+    virtual ~cModel() {
         OBJ_COUNT--;
         clear_map_modelAt();
     }
@@ -411,38 +410,38 @@ struct EqualKey_float3 {
 unordered_map<float3, cModel*, HashFunc_float3, EqualKey_float3> modelAt;
 
 void cModel::set_map_modelAt() {
-    int xl = collideBox.center.x - collideBox.size.x;
-    int xr = collideBox.center.x + collideBox.size.x;
-    int yl = collideBox.center.y - collideBox.size.y;
-    int yr = collideBox.center.y + collideBox.size.y;
-    int zl = collideBox.center.z - collideBox.size.z;
-    int zr = collideBox.center.z + collideBox.size.z;
+    int xl = (int)floor(collideBox.center.x - collideBox.size.x);
+    int xr = (int)floor(collideBox.center.x + collideBox.size.x);
+    int yl = (int)floor(collideBox.center.y - collideBox.size.y);
+    int yr = (int)floor(collideBox.center.y + collideBox.size.y);
+    int zl = (int)floor(collideBox.center.z - collideBox.size.z);
+    int zr = (int)floor(collideBox.center.z + collideBox.size.z);
     // 向下取整
     for(int i=xl; i<xr; i++) {
         for(int j=yl; j<yr; j++) {
             for(int k=zl; k<zr; k++) {
-                //todo 在最终版应该要把这里无效化
-                if(modelAt.count(make_float3(i, j, k)) && modelAt[make_float3(i, j, k)] != NULL) {
+                //todo 在最终版应该要把这里无效化(
+                if(modelAt.count(make_float3((float)i, (float)j, (float)k)) && modelAt[make_float3((float)i, (float)j, (float)k)] != NULL) {
                     std::cerr << "[WARNING] (" << i << ", " << j << ", " << k << ") is not empty!\n";
                 }
-                modelAt[make_float3(i, j, k)] = this;
+                modelAt[make_float3((float)i, (float)j, (float)k)] = this;
             }
         }
     }
 }
 
 void cModel::clear_map_modelAt() {
-    int xl = collideBox.center.x - collideBox.size.x;
-    int xr = collideBox.center.x + collideBox.size.x;
-    int yl = collideBox.center.y - collideBox.size.y;
-    int yr = collideBox.center.y + collideBox.size.y;
-    int zl = collideBox.center.z - collideBox.size.z;
-    int zr = collideBox.center.z + collideBox.size.z;
+    int xl = (int)floor(collideBox.center.x - collideBox.size.x);
+    int xr = (int)floor(collideBox.center.x + collideBox.size.x);
+    int yl = (int)floor(collideBox.center.y - collideBox.size.y);
+    int yr = (int)floor(collideBox.center.y + collideBox.size.y);
+    int zl = (int)floor(collideBox.center.z - collideBox.size.z);
+    int zr = (int)floor(collideBox.center.z + collideBox.size.z);
     // 向下取整
     for(int i=xl; i<xr; i++) {
         for(int j=yl; j<yr; j++) {
             for(int k=zl; k<zr; k++) {
-                modelAt[make_float3(i, j, k)] = NULL;
+                modelAt[make_float3((float)i, (float)j, (float)k)] = NULL;
             }
         }
     }
@@ -588,7 +587,7 @@ class cSphere: public cModel {
 public:
     GeometryData::Sphere args;
 
-    cSphere(float3 c, float r, ModelTexture tex_id=NONE): 
+    explicit cSphere(float3 c, float r, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {r, r, r}), tex_id) {
         args.center = c;
         args.radius = r;
@@ -646,7 +645,7 @@ class cSphereShell: public cModel {
 public:
     SphereShell args;
 
-    cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
+    explicit cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {r2, r2, r2}), tex_id) {
         args.center = c;
         args.radius1 = r1;
@@ -711,14 +710,14 @@ class cCube : public cModel {
 public:
     Cube args;
 
-    cCube(float3 c, float s, ModelTexture tex_id=NONE): 
+    explicit cCube(float3 c, float s, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, {s, s, s}), tex_id) {
         args.center = c;
         args.size = {s, s, s};
         collidable = true;
     }
 
-    cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
+    explicit cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
         cModel(CollideBox(c, s), tex_id) {
         args.center = c;
         args.size = s;
@@ -761,7 +760,7 @@ class cCubeShell : public cModel {
 public:
     CubeShell args;
 
-    cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id = NONE) :
+    explicit cCubeShell(float3 c, float s1, float s2, ModelTexture tex_id = NONE) :
         cModel(CollideBox(c, { s2, s2, s2 }), tex_id) {
         args.center = c;
         args.size1 = { s1, s1, s1 };
@@ -769,7 +768,7 @@ public:
         collidable = true;
     }
 
-    cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id) :
+    explicit cCubeShell(float3 c, float3 s1, float3 s2, ModelTexture tex_id) :
         cModel(CollideBox(c, s2), tex_id) {
         args.center = c;
         args.size1 = s1;
@@ -810,11 +809,11 @@ public:
     }
 };
 
-class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
+ class cRect: public cModel {    // 警告：这个类缺失很多功能，建议不用！
 public:
     Parallelogram args;
 
-    cRect(float3 v1, float3 v2, float3 anchor, ModelTexture tex_id=NONE):
+    explicit cRect(float3 v1, float3 v2, float3 anchor, ModelTexture tex_id=NONE):
         cModel(CollideBox(anchor, {1.f, 1.f, 1.f}) , tex_id) {
         args = {v1, v2, anchor};
     }
@@ -913,7 +912,7 @@ void load_texture(std::string file_name, const std::string & name) {
         for (int y = 0; y < res.y / 2; y++) {
             uint32_t* line_y = texture->pixel + y * res.x;
             uint32_t* mirrored_y = texture->pixel + (res.y - 1 - y) * res.x;
-            int mirror_y = res.y - 1 - y;
+            // int mirror_y = res.y - 1 - y;    // 没有用过
             for (int x = 0; x < res.x; x++) {
                 std::swap(line_y[x], mirrored_y[x]);
             }
@@ -1056,7 +1055,7 @@ void createParticle(float3& pos, float3& acceleration, float3& size, float timeP
         tmp->pos = pos;
         tmp->acceleration = acceleration;
         tmp->velocity = make_float3(0.f, 0.f, 0.f);
-        tmp->beginTime = glfwGetTime();
+        tmp->beginTime = (float)glfwGetTime();
         tmp->lifeLength = timePtc;
         tmp->args.center = pos; tmp->args.size = size;
         tmp->texture_id = texture_id;//重要调整！！
@@ -1086,9 +1085,9 @@ void createParticles_planeBounce(float3& place, float powery, float powerxz, flo
 {
     while (number--)
     {
-        float theta = fmod(rnd(jiangzemin), 2 * M_PI);
-        float radiu = fmod(rnd(jiangzemin), r);
-        float randz = fmod(rnd(jiangzemin), maxSize);
+        float theta = (float)fmod(rnd(jiangzemin), 2 * M_PI);
+        float radiu = (float)fmod(rnd(jiangzemin), r);
+        float randz = (float)fmod(rnd(jiangzemin), maxSize);
         createParticle(
             place + make_float3(radiu * cos(theta), 0.f, radiu * sin(theta)),
             make_float3(radiu * cos(theta) * powerxz, powery, radiu * sin(theta) * powerxz),
@@ -1326,11 +1325,11 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         glfwGetWindowSize(window, &curWidth, &curHeight);
         // make the window smaller
         if (key == GLFW_KEY_F10) {
-            glfwSetWindowSize(window, curWidth/1.2f, curHeight/1.2f);
+            glfwSetWindowSize(window, (int)(curWidth/1.2f), (int)(curHeight/1.2f));
         }
         // make the window GREAT again
         if (key == GLFW_KEY_F11) {
-            glfwSetWindowSize(window, curWidth*1.2f, curHeight*1.2f);
+            glfwSetWindowSize(window, (int)(curWidth*1.2f), (int)(curHeight*1.2f));
         }
         // save your file
         if (key == GLFW_KEY_F5) {
@@ -1600,10 +1599,10 @@ void createGeometry( WhittedState &state ) {
     OptixAabb*  aabb = new OptixAabb[sumCOUNT];
     CUdeviceptr d_aabb;
 
-    for(int i=0; i<cModel::OBJ_COUNT; i++) {
+    for(size_t i=0; i<cModel::OBJ_COUNT; i++) {
         modelLst[i]->set_bound(reinterpret_cast<float*>(&aabb[i]));
     }
-    for (int i = 0; i < Particle::OBJ_COUNT; i++) {
+    for (size_t i = 0; i < Particle::OBJ_COUNT; i++) {
         ptcList[i]->set_bound(reinterpret_cast<float*>(&aabb[i+cModel::OBJ_COUNT]));
     }
 
@@ -1619,10 +1618,10 @@ void createGeometry( WhittedState &state ) {
 
     // Setup AABB build input
     uint32_t* aabb_input_flags = new uint32_t[sumCOUNT];
-    for(int i=0; i<cModel::OBJ_COUNT; i++) {
+    for(size_t i=0; i<cModel::OBJ_COUNT; i++) {
         aabb_input_flags[i] = modelLst[i]->get_input_flag();
     }
-    for (int i = 0; i < Particle::OBJ_COUNT; i++) {
+    for (size_t i = 0; i < Particle::OBJ_COUNT; i++) {
         aabb_input_flags[i+cModel::OBJ_COUNT] = ptcList[i]->get_input_flag();
     }
 
