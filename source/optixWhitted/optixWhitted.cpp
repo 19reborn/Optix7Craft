@@ -198,33 +198,33 @@ inline float pow2(float f) {
     return f*f;
 }
 
-float calc_distance(float3 a, float3 b) {
+inline float calc_distance(float3 a, float3 b) {
     return sqrt(pow2(a.x - b.x) + pow2(a.y - b.y) + pow2(a.z - b.z));
 }
-float cceil(float f)
+inline float cceil(float f)
 {
     if (f == ceil(f)) return f + 1.f;
     return ceil(f);
 }
-float ffloor(float f )
+inline float ffloor(float f )
 {
     if (f == floor(f)) return f - 1.f;
     return floor(f);
 }
-float fsign(float f)
+inline float fsign(float f)
 {
     if (f > 0) return 1.f;
     return -1.f;
 }
-float3 f3ceil(float3& a)
+inline float3 f3ceil(float3& a)
 {
     return make_float3(cceil(a.x), cceil(a.y), cceil(a.z));
 }
-float3 f3floor(float3& a)
+inline float3 f3floor(float3& a)
 {
     return make_float3(ffloor(a.x), ffloor(a.y), ffloor(a.z));
 }
-float3 f3abs(float3& a)
+inline float3 f3abs(float3& a)
 {
     return make_float3(fabs(a.x), fabs(a.y), fabs(a.z));
 }
