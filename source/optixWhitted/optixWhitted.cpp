@@ -2618,12 +2618,20 @@ void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& param
     ) );
 }
 
+void handleTimeUpdate( WhittedState& state )
+{
+    float sunAngle = 1.1f + glfwGetTime() / 60 * (2 * M_PI - 1.1f);
+    //std::cout << sunAngle << std::endl;
+    sky.setSunTheta(sunAngle);
+    state.params.sky = sky;
+}
+
 void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state)
 {
     // Update params on device
 
     state.params.subframe_index = 0;
-
+    handleTimeUpdate( state );
     handleCameraUpdate( state );
     handleResize( output_buffer, state.params );
 
