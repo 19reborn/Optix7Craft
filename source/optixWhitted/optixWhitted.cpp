@@ -774,7 +774,7 @@ void load_texture(std::string file_name, const std::string & name) {
     }
 }
 
-void load_texture_intergrated(std::string file_prefix, ModelTexture tex) {
+void load_texture_integrated(std::string file_prefix, ModelTexture tex) {
     load_texture(string(file_prefix + "_1K_Color.jpg"), string(get_texture_name(tex) + "_diffuse"));
     load_texture(string(file_prefix + "_1K_Normal.jpg"), string(get_texture_name(tex) + "_normal"));
     load_texture(string(file_prefix + "_1K_Displacement.jpg"), string(get_texture_name(tex) + "_roughness"));
@@ -2532,8 +2532,8 @@ int main( int argc, char* argv[] )
 
     // Image credit: CC0Textures.com (https://cc0textures.com/)
     // Licensed under the Creative Commons CC0 License.
-    load_texture_intergrated("Wood049", WOOD);
-    load_texture_intergrated("Planks021", PLANK);
+    load_texture_integrated("Wood049", WOOD);
+    load_texture_integrated("Planks021", PLANK);
     //
     // Parse command line options
     //
