@@ -318,6 +318,8 @@ enum ModelTexture { // 记得也填get_texture_name
     NONE = 0,
     WOOD,
     PLANK,
+    BRICK,
+    DIRT,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -326,6 +328,8 @@ string get_texture_name(ModelTexture tex_id) {
         case NONE: return "IRON";   // 暂定，暂定
         case WOOD: return "WOOD";
         case PLANK: return "PLANK";
+        case BRICK: return "BRICK";
+        case DIRT: return "DIRT";
         default: return "ERROR";
     }
 }
@@ -1173,12 +1177,14 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_F11) {
             glfwSetWindowSize(window, curWidth*1.2f, curHeight*1.2f);
         }
-
-        // test move cubes
-        if (key == GLFW_KEY_E) {
-            modelLst[0]->move_delta(make_float3(0, 1, 0));
-            model_need_update = true;
+    
+        // 吸管，取色器
+        if (key == GLFW_KEY_F) {
+            if (istargeted) {
+                curTexture = intersectBlock->texture_id;
+            }
         }
+        
         if (key == GLFW_KEY_T) {
             createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f);
         }
@@ -2534,6 +2540,8 @@ int main( int argc, char* argv[] )
     // Licensed under the Creative Commons CC0 License.
     load_texture_integrated("Wood049", WOOD);
     load_texture_integrated("Planks021", PLANK);
+    load_texture_integrated("Bricks059", BRICK);
+    load_texture_integrated("Ground037", DIRT);
     //
     // Parse command line options
     //

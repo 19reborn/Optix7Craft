@@ -34,6 +34,7 @@ git clone https://github.com/19reborn/Ray-Tracing-Project.git
 - <kbd>Left Shift</kbd> Run
 - <kbd>Space</kbd> Jump
 - <kbd>M</kbd> Fly Mode
+- <kbd>F</kbd> Get the same block as targeted 
 - <kbd>Left Ctrl</kbd> Landing in Fly Mode
 - <kbd>F10</kbd> <kbd>F11</kbd> Zoom the window size - / +
 - Scroll: Switch the type of block to place
