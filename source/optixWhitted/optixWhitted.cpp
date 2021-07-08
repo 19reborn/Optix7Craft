@@ -2624,10 +2624,7 @@ void handleResize( sutil::CUDAOutputBuffer<uchar4>& output_buffer, Params& param
 
 void handleTimeUpdate( WhittedState& state )
 {
-    float sunAngle = 1.1f + glfwGetTime() / 60 * (2 * M_PI - 1.1f);
-    //std::cout << sunAngle << std::endl;
-    sky.setSunTheta(sunAngle);
-    state.params.sky = sky;
+    
 }
 
 void updateState( sutil::CUDAOutputBuffer<uchar4>& output_buffer, WhittedState &state)
@@ -2771,7 +2768,7 @@ int main( int argc, char* argv[] )
     state.params.height = 768;
     sutil::CUDAOutputBufferType output_buffer_type = sutil::CUDAOutputBufferType::GL_INTEROP;
     sky.init();
-    sky.setSunTheta(DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
+    sky.setSunTheta( DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
     sky.setSunPhi(DEFAULT_SUN_PHI);
     sky.setTurbidity(2.2f);
     //Split out sun for direct sampling
@@ -2910,6 +2907,29 @@ int main( int argc, char* argv[] )
                     glfwPollEvents();
 
                     
+
+
+
+                    //----------------------------sun updating----------------------------
+                    float sunAngle = 1.1f - glfwGetTime() / 60 * (2 * M_PI - 1.1f);
+                    //std::cout << sunAngle << std::endl;
+                    sky.setSunTheta(sunAngle);
+                    sun.direction = sky.getSunDir();
+                    Onb t_onb(sun.direction);
+                    sun.radius = DEFAULT_SUN_RADIUS;
+                    sun.v0 = t_onb.m_tangent;
+                    sun.v1 = t_onb.m_binormal;
+                    const float sqrt_sun_scale_time = PHYSICAL_SUN_RADIUS / sun.radius;
+                    sun.color = sky.sunColor() * sqrt_sun_scale_time * sqrt_sun_scale_time;
+                    sun.casts_shadow = 1;
+                    //state.params.sun = sun;
+                    state.params.sky = sky;
+
+
+
+
+
+
                     updateControl(deltatime);
                     updateParticle(deltatime);
                     updateCreature(deltatime);
