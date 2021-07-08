@@ -59,7 +59,7 @@ extern "C" __global__ void __intersection__cube()
             float3 coord = ray_origin + tmin * ray_direction;
             // 计算texture上的u, v
             float3 relativeCoord = coord - cube->center;
-            float2 uv = get_coord(relativeCoord, cube->center);
+            float2 uv = get_coord(relativeCoord, cube->size);
 
 
             optixReportIntersection(
@@ -78,7 +78,7 @@ extern "C" __global__ void __intersection__cube()
                 float3 coord = ray_origin + tmax * ray_direction;
                 // 计算texture上的u, v
                 float3 relativeCoord = coord - cube->center;
-                float2 uv = get_coord(relativeCoord, cube->center);
+                float2 uv = get_coord(relativeCoord, cube->size);
 
 
                 optixReportIntersection(
