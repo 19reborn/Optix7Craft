@@ -34,6 +34,29 @@ static __device__ float2 get_coord(float3 relativeCoord, float3 size)
 }
 
 
+static __device__ cube_face get_face(float3 relativeCoord, float3 size)
+{
+    if (relativeCoord.x == size.x) {
+        return x_up;
+    }
+    else if (relativeCoord.x == -size.x) {
+        return x_down;
+    }
+    else if (relativeCoord.y == size.y) {
+        return y_up;
+    }
+    else if (relativeCoord.y == -size.y) {
+        return y_down;
+    }
+    else if (relativeCoord.z == size.z) {
+        return z_up;
+    }
+    else if (relativeCoord.z == -size.z) {
+        return z_down;
+    }
+}
+
+
 extern "C" __global__ void __intersection__cube()
 {
     const Cube* cube = reinterpret_cast<Cube*>( optixGetSbtDataPointer() );
@@ -51,6 +74,7 @@ extern "C" __global__ void __intersection__cube()
     float tmax = fminf(far);
 
     float eps = 0.0001f;
+
     if (tmin <= tmax) {
         bool check_second = true;
         if (tmin >= ray_tmin && tmin <= ray_tmax) {
@@ -59,14 +83,15 @@ extern "C" __global__ void __intersection__cube()
             // 计算texture上的u, v
             float3 relativeCoord = coord - cube->center;
             float2 uv = get_coord(relativeCoord, cube->size);
-
+            cube_face face = get_face(relativeCoord, cube->size);
 
             optixReportIntersection(
                 tmin,
                 0,
                 float3_as_args(normal),
                 float_as_int(uv.x),
-                float_as_int(uv.y)
+                float_as_int(uv.y),
+                face
             );
 
             check_second = false;
@@ -78,14 +103,15 @@ extern "C" __global__ void __intersection__cube()
                 // 计算texture上的u, v
                 float3 relativeCoord = coord - cube->center;
                 float2 uv = get_coord(relativeCoord, cube->size);
-
+                cube_face face = get_face(relativeCoord, cube->size);
 
                 optixReportIntersection(
                     tmax,
                     0,
                     float3_as_args(normal),
                     float_as_int(uv.x),
-                    float_as_int(uv.y)
+                    float_as_int(uv.y),
+                    face
                 );
             }
         }

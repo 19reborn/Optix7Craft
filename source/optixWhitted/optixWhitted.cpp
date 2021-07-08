@@ -320,16 +320,18 @@ enum ModelTexture { // 记得也填get_texture_name
     PLANK,
     BRICK,
     DIRT,
+    IRON,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
 string get_texture_name(ModelTexture tex_id) {
     switch (tex_id) {
-        case NONE: return "IRON";   // 暂定，暂定
+        case NONE: return "NONE";   // 暂定，暂定
         case WOOD: return "WOOD";
         case PLANK: return "PLANK";
         case BRICK: return "BRICK";
         case DIRT: return "DIRT";
+        case IRON: return "IRON";
         default: return "ERROR";
     }
 }
@@ -461,11 +463,18 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                 { 0.9f, 0.9f, 0.9f },   // Ks
                 { 0.01f, 0.01f, 0.01f },   // Kr 
-                64,                     // phong_exp
+                64                      // phong_exp
         };
+        if(texture_id == IRON) {
+            hgr[idx].data.shading.metal.Kr = {0.6f, 0.6f, 0.6f};
+        }
         hgr[idx].data.has_diffuse = true;
         hgr[idx].data.diffuse_map = texture_list[textures[ get_texture_name(texture_id) + "_diffuse" ]]->textureObject;
-        hgr[idx].data.has_normal = true;
+        if(texture_id == IRON) {
+            hgr[idx].data.has_normal = false;
+        } else {
+            hgr[idx].data.has_normal = true;
+        }
         hgr[idx].data.normal_map = texture_list[textures[ get_texture_name(texture_id) + "_normal" ]]->textureObject;
         hgr[idx].data.has_roughness = true;
         hgr[idx].data.roughness_map = texture_list[textures[ get_texture_name(texture_id) + "_roughness" ]]->textureObject;
@@ -1937,7 +1946,7 @@ void createPipeline( WhittedState &state )
     state.pipeline_compile_options = {
             false,                                                  // usesMotionBlur
             OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS,          // traversableGraphFlags
-            5,    /* RadiancePRD uses 5 payloads */                 // numPayloadValues
+            6,    /* RadiancePRD uses 5 payloads */                 // numPayloadValues
             6,    /* Parallelogram intersection uses 5 attrs */     // numAttributeValues
             OPTIX_EXCEPTION_FLAG_NONE,                              // exceptionFlags
             "params"                                                // pipelineLaunchParamsVariableName
@@ -2547,6 +2556,7 @@ int main( int argc, char* argv[] )
     load_texture_integrated("Planks021", PLANK);
     load_texture_integrated("Bricks059", BRICK);
     load_texture_integrated("Ground037", DIRT);
+    load_texture_integrated("Metal003", IRON);
     //
     // Parse command line options
     //
