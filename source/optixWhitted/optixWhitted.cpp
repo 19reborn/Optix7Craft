@@ -159,6 +159,8 @@ struct WhittedState {
     OptixProgramGroup           occlusion_texture_cube_prog_group = 0;
     OptixProgramGroup           radiance_glass_cube_prog_group = 0;
     OptixProgramGroup           occlusion_glass_cube_prog_group = 0;
+    OptixProgramGroup           radiance_water_cube_prog_group = 0;
+    OptixProgramGroup           occlusion_water_cube_prog_group = 0;
     OptixProgramGroup           radiance_floor_prog_group         = 0;
     OptixProgramGroup           occlusion_floor_prog_group        = 0;
 
@@ -1946,6 +1948,57 @@ static void createGlassCubeProgram(WhittedState& state, std::vector<OptixProgram
     state.occlusion_glass_cube_prog_group = occlusion_cube_prog_group;
 }
 
+static void createWaterCubeProgram(WhittedState& state, std::vector<OptixProgramGroup>& program_groups)
+{
+    OptixProgramGroup           radiance_cube_prog_group;
+    OptixProgramGroupOptions    radiance_cube_prog_group_options = {};
+    OptixProgramGroupDesc       radiance_cube_prog_group_desc = {};
+    radiance_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+        radiance_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    radiance_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__water_radiance";
+    radiance_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    radiance_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    char    log[2048];
+    size_t  sizeof_log = sizeof(log);
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &radiance_cube_prog_group_desc,
+        1,
+        &radiance_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &radiance_cube_prog_group));
+
+    program_groups.push_back(radiance_cube_prog_group);
+    state.radiance_water_cube_prog_group = radiance_cube_prog_group;
+
+    OptixProgramGroup           occlusion_cube_prog_group;
+    OptixProgramGroupOptions    occlusion_cube_prog_group_options = {};
+    OptixProgramGroupDesc       occlusion_cube_prog_group_desc = {};
+    occlusion_cube_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+        occlusion_cube_prog_group_desc.hitgroup.moduleIS = state.cube_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__cube";
+    occlusion_cube_prog_group_desc.hitgroup.moduleCH = state.shading_module;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__full_occlusion";
+    occlusion_cube_prog_group_desc.hitgroup.moduleAH = nullptr;
+    occlusion_cube_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
+
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        state.context,
+        &occlusion_cube_prog_group_desc,
+        1,
+        &occlusion_cube_prog_group_options,
+        log,
+        &sizeof_log,
+        &occlusion_cube_prog_group));
+
+    program_groups.push_back(occlusion_cube_prog_group);
+    state.occlusion_water_cube_prog_group = occlusion_cube_prog_group;
+}
+
 static void createFloorProgram( WhittedState &state, std::vector<OptixProgramGroup> &program_groups )
 {
     OptixProgramGroup           radiance_floor_prog_group;
@@ -2057,6 +2110,7 @@ void createPipeline( WhittedState &state )
     createMetalCubeProgram( state, program_groups );
     createTextureCubeProgram(state, program_groups);
     createGlassCubeProgram(state, program_groups);
+    createWaterCubeProgram(state, program_groups);
     createFloorProgram( state, program_groups );
     createMissProgram( state, program_groups );
 

@@ -189,6 +189,19 @@ struct CheckerPhong
     float2 inv_checker_size;
 };
 
+struct Water
+{
+    float3 Ka;
+    float3 Kd;
+    float3 Ks;
+    float3 Kr;
+    float  phong_exp;
+    float  importance_cutoff;
+    float3 cutoff_color;
+    float3 refraction_color;
+    int    refraction_maxdepth;
+    float refractivity_n;
+};
 
 struct HitGroupData
 {
@@ -206,6 +219,7 @@ struct HitGroupData
     {
         Phong           metal;
         Glass           glass;
+        Water           water;
         CheckerPhong    checker;
     } shading;    
 
