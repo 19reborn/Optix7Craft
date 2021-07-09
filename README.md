@@ -37,6 +37,7 @@ git clone https://github.com/19reborn/Ray-Tracing-Project.git
 - <kbd>F</kbd> Get the same block as targeted 
 - <kbd>B</kbd> Switch to *thinner* block
 - <kbd>L</kbd> Place light
+- <kbd>K</kbd> Switch the color of the light
 - <kbd>T</kbd> Particle effect switch
 - <kbd>G</kbd> /tp spawn
 - <kbd>Left Ctrl</kbd> Landing in Fly Mode

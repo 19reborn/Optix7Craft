@@ -910,16 +910,27 @@ public:
     void move_to(float3 pos) {}
 };
 
+ enum LightColor {
+     COLD = 0,
+     WARM,
+     LC_SIZE
+ };
+LightColor curLightColor = COLD;
+
 class cLightSphere: public cSphereShell {
 public:
     static int LIGHTID;
     int lightnum;
 
-    explicit cLightSphere(float3 pos, float3 color, float radius, ModelTexture tex_id=NONE):
+    explicit cLightSphere(float3 pos, LightColor lc, float radius, ModelTexture tex_id=NONE):
     cSphereShell(pos, radius-.1f, radius, tex_id) {
         BasicLight bl;
         bl.pos = pos;
-        bl.color = color;
+        if (lc == COLD) {
+            bl.color = { 0.f, 0.5f, 1.f };
+        } else if (lc == WARM) {
+            bl.color = { 1.f, 0.5f, 0.f };
+        }
         bl.id = ++LIGHTID;
         g_light.push_back(bl);
         lightnum = bl.id;
@@ -1435,6 +1446,10 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
             CurSize = (BlockSize)((CurSize + 1) % BS_SIZE);
         }
 
+        if (key == GLFW_KEY_K) {
+            curLightColor = (LightColor)( (curLightColor + 1) % LC_SIZE );
+        }
+
         if (key == GLFW_KEY_L) {
             if (istargeted)
             {
@@ -1458,7 +1473,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
                 CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f, 0.5f, 0.5f));
                 if (!CollideBox::collide_check(control->box, tmpCLBOX))
                 {
-                    modelLst.push_back(new cLightSphere(target, {0.7f, 0.8f, 0.6f}, 0.5f, curTexture));
+                    modelLst.push_back(new cLightSphere(target, curLightColor, 0.5f, curTexture));
                     model_need_update = true;
                 }
 
@@ -3458,7 +3473,6 @@ int main( int argc, char* argv[] )
         // Add basic models
         //
         readData();
-        modelLst.push_back(new cLightSphere({ 8.0f, 6.0f, -0.4f }, {0.5f, 1.0f, 1.0f}, 0.5f));
         initEntitySystem();
 
         initCameraState();
