@@ -84,6 +84,8 @@ bool              isParticle = true;
 //Sun height
 bool              renewShadowOnTime = false;
 
+//cursor mode
+bool              isNoCursor = true;
 //--------------------------------------------------------------------------- ---
 //
 // Globals
@@ -1486,6 +1488,20 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
 
             }
         }
+
+        if (key == GLFW_KEY_LEFT_ALT)
+        {
+            if (isNoCursor)
+            {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                
+            }
+            else {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
+            isNoCursor = !isNoCursor;
+            
+        }
     }
     else if (action == GLFW_RELEASE)
     {
@@ -1582,7 +1598,7 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 5u;
+    state.params.samples_per_launch = 15u;
     state.params.num_lights_sample = 5u;
     state.params.point_light_sum = static_cast<uint32_t>(g_light.size());
     CUDA_CHECK(cudaMalloc(
@@ -3515,7 +3531,7 @@ int main( int argc, char* argv[] )
             glfwSetWindowIconifyCallback( window, windowIconifyCallback );
             glfwSetKeyCallback          ( window, keyCallback           );
             glfwSetWindowUserPointer    ( window, &state.params         );
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+           glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             {
                 // output_buffer needs to be destroyed before cleanupUI is called
                 sutil::CUDAOutputBuffer<uchar4> output_buffer(
