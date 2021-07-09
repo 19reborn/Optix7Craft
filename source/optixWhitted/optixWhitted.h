@@ -50,10 +50,22 @@ enum RayType
 
 struct BasicLight
 {
+    int id;
     float3  pos;
     float3  color;
-};
 
+    /*
+    BasicLight(float3& pos, float3& color): pos(pos), color(color) {
+        id = ++IDX;
+    }
+
+    BasicLight(const BasicLight& other) {
+        id = other.id;
+        pos = other.pos;
+        color = other.color;
+    }
+    */
+}; 
 
 struct DirectionalLight
 {
