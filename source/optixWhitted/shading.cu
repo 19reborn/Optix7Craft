@@ -371,8 +371,13 @@ __device__ void phongShade( float3 p_Kd,
     }
     
     
-    // compute Point lightp
+    // compute Point light
     for (int light_id = 0; light_id < params.point_light_sum; light_id++) {
+        float Ldist = length(params.point_light[light_id].pos - hit_point);
+        float light_fade = 1.0f;
+        if (Ldist > 1.0f) {
+            light_fade = 1.0f / (pow(Ldist, 1.2f));
+        }
         for (int lightSampleID = 0; lightSampleID < numLightSamples; lightSampleID++) {
             float3 du = make_float3(1.0f, 0.0f, 0.0f)*0.5;
             float3 dv = make_float3(0.0f, 0.0f, 1.0f)*0.5;
@@ -383,11 +388,11 @@ __device__ void phongShade( float3 p_Kd,
             float Ldist = length(jittered_pos - hit_point);
             float3 L = normalize(jittered_pos - hit_point);
             float nDl = dot(p_normal, L);
-            float light_fade = 1.0f;
-            if (Ldist > 1.0f) {
-                light_fade = 1.0f / (Ldist * Ldist);
-            }
-            light_fade = 1.0f;
+            //float light_fade = 1.0f;
+            //if (Ldist > 1.0f) {
+            //    light_fade = 1.0f / (pow(Ldist,1.2f)) ;
+            //}
+            //light_fade = 1.0f;
             // cast shadow ray
             if (nDl > 0.0f)
             {
@@ -440,7 +445,7 @@ __device__ void phongShade( float3 p_Kd,
             {
                 float3 R = reflect(ray_dir, p_normal);
 
-                result += p_Kr * traceSun(hit_point, R, new_depth, new_importance, sun_prd->attenuation * light_fade);
+                result += p_Kr * traceSun(hit_point, R, new_depth, new_importance, sun_prd->attenuation )*light_fade;
             }
         }
     }
@@ -1047,7 +1052,13 @@ extern "C" __global__ void __closesthit__water_radiance()
     sun_prd->radiance = result;
 
     result = make_float3(0.0f);
-    for (int light_id = 0; light_id < params.point_light_sum; light_id++) {
+    for (int light_id = 0; light_id < params.point_light_sum; light_id++) {        
+
+        float Ldist = length(params.point_light[light_id].pos - hit_point);
+        float light_fade = 1.0f;
+            if (Ldist > 1.0f) {
+                light_fade = 1.0f / (pow(Ldist, 1.2f));
+            }
         for (int lightSampleID = 0; lightSampleID < numLightSamples; lightSampleID++) {
             float3 du = make_float3(1.0f, 0.0f, 0.0f) * 0.5;
             float3 dv = make_float3(0.0f, 0.0f, 1.0f) * 0.5;
@@ -1090,7 +1101,7 @@ extern "C" __global__ void __closesthit__water_radiance()
                     if (nDh > 0)
                     {
                         float power = pow(nDh, p_phong_exp);
-                        result += p_Ks * power * Lc/ numLightSamples;
+                        result += p_Ks * power * Lc/ numLightSamples * light_fade;
                     }
                 }
             }
@@ -1106,7 +1117,7 @@ extern "C" __global__ void __closesthit__water_radiance()
             if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
             {
                 float3 R = reflect(ray_dir, p_normal);
-                result += p_Kr * traceSun(hit_point + p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation);
+                result += p_Kr * traceSun(hit_point + p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation)* light_fade;
             }
         }
 
@@ -1119,7 +1130,7 @@ extern "C" __global__ void __closesthit__water_radiance()
             float3 R;
             refract(R, ray_dir, p_normal, water.refractivity_n);
             result *= (1.0f - local_transparency);
-            result += local_transparency * traceSun(hit_point + p_normal * params.scene_epsilon, R, sun_prd->depth + 1, sun_prd->importance, sun_prd->attenuation* p_Kd);
+            result += local_transparency * traceSun(hit_point + p_normal * params.scene_epsilon, R, sun_prd->depth + 1, sun_prd->importance, sun_prd->attenuation* p_Kd)*light_fade;
         }
     }
     // ray tree attenuation
