@@ -690,7 +690,7 @@ public:
     SphereShell args;
 
     explicit cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
-        cModel(CollideBox(c, {0.5, 0.5, 0.5}), tex_id) {
+        cModel(CollideBox(c, {0.5f, 0.5f, 0.5f}), tex_id) {
         args.center = c;
         args.radius1 = r1;
         args.radius2 = r2;
@@ -913,6 +913,7 @@ public:
  enum LightColor {
      COLD = 0,
      WARM,
+     WHITE,
      LC_SIZE
  };
 LightColor curLightColor = COLD;
@@ -930,6 +931,8 @@ public:
             bl.color = { 0.f, 0.5f, 1.f };
         } else if (lc == WARM) {
             bl.color = { 1.f, 0.5f, 0.f };
+        } else if (lc == WHITE) {
+            bl.color = { 1.f, 1.f, 1.f };
         }
         bl.id = ++LIGHTID;
         g_light.push_back(bl);
@@ -1473,7 +1476,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
                 CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f, 0.5f, 0.5f));
                 if (!CollideBox::collide_check(control->box, tmpCLBOX))
                 {
-                    modelLst.push_back(new cLightSphere(target, curLightColor, 0.5f, curTexture));
+                    modelLst.push_back(new cLightSphere(target, curLightColor, 0.1f, curTexture));
                     model_need_update = true;
                 }
 
