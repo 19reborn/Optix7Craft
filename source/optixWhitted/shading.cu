@@ -284,7 +284,6 @@ __device__ void phongShade( float3 p_Kd,
     float3 result = p_Ka * params.ambient_light_color * p_Kd;
     //float3 result = make_float3(0);
     
-    /*
     //sun light
     DirectionalLight sun = params.sun;
 
@@ -370,7 +369,7 @@ __device__ void phongShade( float3 p_Kd,
             result += p_Kr * traceSun(hit_point+p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation);
         }
     }
-    */
+    
     
     // compute Point lightp
     for (int light_id = 0; light_id < params.point_light_sum; light_id++) {
@@ -521,7 +520,7 @@ extern "C" __global__ void __closesthit__glass_radiance()
     SunPRD * sun_prd = getPRD<SunPRD>();
 
     if (sun_prd->countEmitted) {
-        sun_prd->emitted = make_float3(0.6,0.7,0.8);//物体本身发光
+        sun_prd->emitted = make_float3(0.5,0.6,0.9);//物体本身发光
     }
     else
         sun_prd->emitted = make_float3(0.0f);
@@ -733,7 +732,7 @@ extern "C" __global__ void __closesthit__texture_radiance()
     }
     if (sbt_data->has_roughness) {
         //float4 test = tex2D<float4>(sbt_data->roughness_map, coord.x, coord.y);
-        phong.phong_exp = 1.0f / (tex2D<float4>(sbt_data->roughness_map, coord.x, coord.y).x);
+        phong.phong_exp = pow(128,(tex2D<float4>(sbt_data->roughness_map, coord.x, coord.y).x));
         //printf("%f,%f,%f,%f\n", test.x, test.y, test.z, test.w);
     }
     //normalize(shade_normal);
