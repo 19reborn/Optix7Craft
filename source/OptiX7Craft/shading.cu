@@ -32,7 +32,7 @@
 
 #include <cuda_runtime.h>
 
-#include "optixWhitted.h"
+#include "OptiX7Craft.h"
 #include "helpers.h"
 #include "random.h"
 
@@ -271,7 +271,7 @@ __device__ void phongShade( float3 p_Kd,
     SunPRD* sun_prd = getPRD<SunPRD>();
 
     if (sun_prd->countEmitted)
-        sun_prd->emitted = make_float3(0.0f);//ÎïÌå±¾Éí·¢¹â
+        sun_prd->emitted = make_float3(0.0f);//ï¿½ï¿½ï¿½å±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     else
         sun_prd->emitted = make_float3(0.0f);
     sun_prd->attenuation *= p_Kd;
@@ -304,7 +304,7 @@ __device__ void phongShade( float3 p_Kd,
     // Add direct light sample weighted by shadow term and 1/probability.
     // The pdf for a directional area light is 1/solid_angle.
 
-    // Ôö¼ÓÈíÒõÓ°
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó°
     //float3 shadow_result = make_float3(0.0f);
     const int numLightSamples = params.num_lights_sample;
     for (int lightSampleID = 0; lightSampleID < numLightSamples; lightSampleID++) {
@@ -327,7 +327,7 @@ __device__ void phongShade( float3 p_Kd,
                 hit_point + p_normal * params.scene_epsilon,
                 L,
                 0.01f,
-                1e16, //Æ½ÐÐ¹â´ÓÎÞÏÞÔ¶´¦Éä³ö
+                1e16, //Æ½ï¿½Ð¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½
                 0.0f,
                 OptixVisibilityMask(1),
                 OPTIX_RAY_FLAG_NONE,
@@ -354,7 +354,7 @@ __device__ void phongShade( float3 p_Kd,
             }
         }
     }
-    //·´Éä
+    //ï¿½ï¿½ï¿½ï¿½
     if (fmaxf(p_Kr) > 0)
     {
         // ray tree attenuation
@@ -531,7 +531,7 @@ extern "C" __global__ void __closesthit__glass_radiance()
     SunPRD * sun_prd = getPRD<SunPRD>();
 
     if (sun_prd->countEmitted) {
-        sun_prd->emitted = make_float3(0.5,0.6,0.9);//ÎïÌå±¾Éí·¢¹â
+        sun_prd->emitted = make_float3(0.5,0.6,0.9);//ï¿½ï¿½ï¿½å±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     }
     else
         sun_prd->emitted = make_float3(0.0f);
@@ -709,7 +709,7 @@ extern "C" __global__ void __closesthit__texture_radiance()
         int_as_float(optixGetAttribute_3()),
         int_as_float(optixGetAttribute_4()));
 
-    //µÃµ½½»µãÎ»ÓÚÁ¢·½ÌåµÄÄÄ¸öÃæ£¨yÖáÊÇÌì¿Õ·½Ïò£©
+    //ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¸ï¿½ï¿½æ£¨yï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ·ï¿½ï¿½ï¿½
     cube_face face = cube_face(optixGetAttribute_5());
     //coord.x = 0.3;
     //coord.y = 0.3;
@@ -774,7 +774,7 @@ extern "C" __global__ void __closesthit__transparency_radiance()
 
     SunPRD* sun_prd = getPRD<SunPRD>();
     if (sun_prd->countEmitted)
-        sun_prd->emitted = make_float3(0.0f);//ÎïÌå±¾Éí·¢¹â
+        sun_prd->emitted = make_float3(0.0f);//ï¿½ï¿½ï¿½å±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     else
         sun_prd->emitted = make_float3(0.0f);
 
@@ -896,7 +896,7 @@ extern "C" __global__ void __closesthit__water_radiance()
         int_as_float(optixGetAttribute_3()),
         int_as_float(optixGetAttribute_4()));
 
-    //µÃµ½½»µãÎ»ÓÚÁ¢·½ÌåµÄÄÄ¸öÃæ£¨yÖáÊÇÌì¿Õ·½Ïò£©
+    //ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¸ï¿½ï¿½æ£¨yï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ·ï¿½ï¿½ï¿½
     cube_face face = cube_face(optixGetAttribute_5());
     /*
     if (sbt_data->has_normal) {
@@ -945,7 +945,7 @@ extern "C" __global__ void __closesthit__water_radiance()
 
     float3 hit_point = ray_orig + ray_t * ray_dir;
     if (sun_prd->countEmitted)
-        sun_prd->emitted = make_float3(0.0f);//ÎïÌå±¾Éí·¢¹â
+        sun_prd->emitted = make_float3(0.0f);//ï¿½ï¿½ï¿½å±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     else
         sun_prd->emitted = make_float3(0.0f);
     sun_prd->attenuation *= p_Kd;

@@ -62,7 +62,7 @@
 #include <cstring>
 
 #include "collideBox.h"
-#include "optixWhitted.h"
+#include "OptiX7Craft.h"
 #include "random.h"
 #include <vector>
 #include <string>
@@ -3523,7 +3523,7 @@ int main( int argc, char* argv[] )
         //
         if( outfile.empty() )
         {
-            GLFWwindow* window = sutil::initUI( "optixWhitted", state.params.width, state.params.height );
+            GLFWwindow* window = sutil::initUI( "OptiX7Craft", state.params.width, state.params.height );
             glfwSetMouseButtonCallback  ( window, mouseButtonCallback   );
             glfwSetCursorPosCallback    ( window, cursorPosCallback     );
             glfwSetScrollCallback       ( window, mouseScrollCallback   );

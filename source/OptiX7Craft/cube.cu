@@ -1,6 +1,6 @@
 #include <optix.h>
 
-#include "optixWhitted.h"
+#include "OptiX7Craft.h"
 #include "helpers.h"
 
 #define float3_as_ints( u ) float_as_int( u.x ), float_as_int( u.y ), float_as_int( u.z )

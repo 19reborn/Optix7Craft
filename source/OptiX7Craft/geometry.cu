@@ -28,7 +28,7 @@
 
 #include <optix.h>
 
-#include "optixWhitted.h"
+#include "OptiX7Craft.h"
 #include "helpers.h"
 
 extern "C" {

@@ -29,7 +29,7 @@
 #include <vector_types.h>
 #include <optix_device.h>
 #include <optix.h>
-#include "optixWhitted.h"
+#include "OptiX7Craft.h"
 #include "helpers.h"
 
 extern "C" {

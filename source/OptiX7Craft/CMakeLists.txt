@@ -27,11 +27,11 @@
 #
 # CUDA code includes from lib/DemandLoading, but the library target doesn't set the CUDA include path.
 
-OPTIX_add_sample_executable( optixWhitted target_name
+OPTIX_add_sample_executable( OptiX7Craft target_name
   ${SAMPLES_CUDA_DIR}/helpers.h  
   sunsky.hpp
-  optixWhitted.cpp
-  optixWhitted.h
+  OptiX7Craft.cpp
+  OptiX7Craft.h
   collideBox.h
   entity.h
   camera.cu
