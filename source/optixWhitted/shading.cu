@@ -644,8 +644,8 @@ extern "C" __global__ void __closesthit__glass_radiance()
         }
     }
     result += reflection * glass.reflection_color * color;
-
-    result = result * beer_attenuation;
+    sun_prd->attenuation *= beer_attenuation;
+    result = result ;
 
     //printf("%f,%f,%f\n", result.x, result.y, result.z);
     sun_prd->radiance = result;
@@ -782,13 +782,19 @@ extern "C" __global__ void __closesthit__transparency_radiance()
     float3 front_hit_point = hit_point, back_hit_point = hit_point;
 
     float3 shade_normal = geometry_normal;
+    CubeHitType hit_type = (CubeHitType)optixGetHitKind();
 
     normalize(shade_normal);
     //float3 world_geo_normal = normalize(optixTransformNormalFromObjectToWorldSpace(geometry_normal));
     float3 world_shade_normal = normalize(optixTransformNormalFromObjectToWorldSpace(shade_normal));
-    front_hit_point += params.scene_epsilon * shade_normal;
-    back_hit_point -= params.scene_epsilon * shade_normal;
-
+    if (hit_type == HIT_FROM_OUTSIDE) {
+        front_hit_point += params.scene_epsilon * shade_normal;
+        back_hit_point -= params.scene_epsilon * shade_normal;
+    }
+    else {
+        front_hit_point -= params.scene_epsilon * shade_normal;
+        back_hit_point += params.scene_epsilon * shade_normal;
+    }
     const float3 fhp = optixTransformPointFromObjectToWorldSpace(front_hit_point);
     const float3 bhp = optixTransformPointFromObjectToWorldSpace(back_hit_point);
 
@@ -833,7 +839,7 @@ extern "C" __global__ void __closesthit__transparency_radiance()
             float3 color = glass.cutoff_color;
             if (importance > glass.importance_cutoff)
             {
-                color = traceSun(bhp, t, depth + 1, importance,sun_prd->attenuation);
+                color = traceSun(bhp, t, depth + 1, importance,sun_prd->attenuation * beer_attenuation);
             }
             result += (1.0f - reflection) * glass.refraction_color * color;
         }
@@ -853,13 +859,12 @@ extern "C" __global__ void __closesthit__transparency_radiance()
             * luminance(glass.reflection_color * beer_attenuation);
         if (importance > glass.importance_cutoff)
         {
-            color = traceSun(fhp, r, depth + 1, importance,sun_prd->attenuation);
+            color = traceSun(fhp, r, depth + 1, importance,sun_prd->attenuation * beer_attenuation);
         }
     }
     result += reflection * glass.reflection_color * color;
-
-    result = result * beer_attenuation;
-
+    result = result ;
+    sun_prd->attenuation *= beer_attenuation;
 
     sun_prd->radiance = result;
     unsigned int u0, u1;
@@ -1034,7 +1039,7 @@ extern "C" __global__ void __closesthit__water_radiance()
         float3 R;
         refract(R, ray_dir, p_normal, water.refractivity_n);
         result *= (1.0f - local_transparency);
-        result += local_transparency * traceSun(hit_point + p_normal * params.scene_epsilon, R, sun_prd->depth + 1, sun_prd->importance, sun_prd->attenuation* p_Kd);
+        result += local_transparency * traceSun(hit_point + p_normal * params.scene_epsilon, R, sun_prd->depth + 1, sun_prd->importance, sun_prd->attenuation);
     }
 
         
@@ -1101,7 +1106,7 @@ extern "C" __global__ void __closesthit__water_radiance()
             if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
             {
                 float3 R = reflect(ray_dir, p_normal);
-                result += p_Kr * traceSun(hit_point + p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation* p_Kd);
+                result += p_Kr * traceSun(hit_point + p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation);
             }
         }
 

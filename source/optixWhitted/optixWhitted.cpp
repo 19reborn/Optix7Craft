@@ -94,7 +94,7 @@ bool              resize_dirty  = false;
 bool              minimized     = false;
 float lastframe = 0.f;
 float deltatime = 0.f;
-float circle = 60.0f;
+float circle = 3600.0f;
 float game_time;
 
 
@@ -541,14 +541,14 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
     else if (texture_id == WATER) {
         hgr[idx].data.shading.water = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
-                { 0.03f, 0.4f, 0.5f },   // Kd   // 和主体的颜色有关
-                { 0.4f, 0.4f, 0.4f },   // Ks
-                { 0.9f, 0.9f, 0.9f },   // Kr
+                { 0.65f, 0.8f, 0.9f },   // Kd   // 和主体的颜色有关
+                { 0.8f, 0.7f, 0.8f },   // Ks
+                { 0.6f, 0.6f, 0.6f },   // Kr
                 64,                     // phong_exp
                 0.001f,                 // importance_cutoff
                 10,                     // refraction_maxdepth
-                1.33f,                    // refractivity_n 折射率
-                0.4                    // transparency 透明度
+                1.333f,                    // refractivity_n 折射率
+                0.8                    // transparency 透明度
         };
     }
     else {

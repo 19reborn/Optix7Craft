@@ -129,7 +129,10 @@ enum SphereShellHitType {
     HIT_INSIDE_FROM_INSIDE   = 1u << 3
 };
 
-
+enum CubeHitType {
+    HIT_FROM_INSIDE = 1u << 0,
+    HIT_FROM_OUTSIDE = 1u << 1,
+};
 
 
 struct SphereShell

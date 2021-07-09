@@ -91,7 +91,7 @@ extern "C" __global__ void __intersection__cube()
 
             optixReportIntersection(
                 tmin,
-                0,
+                HIT_FROM_OUTSIDE,
                 float3_as_args(normal),
                 float_as_int(uv.x),
                 float_as_int(uv.y),
@@ -111,7 +111,7 @@ extern "C" __global__ void __intersection__cube()
 
                 optixReportIntersection(
                     tmax,
-                    0,
+                    HIT_FROM_INSIDE,
                     float3_as_args(normal),
                     float_as_int(uv.x),
                     float_as_int(uv.y),
