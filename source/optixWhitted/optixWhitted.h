@@ -76,8 +76,9 @@ struct Params
     unsigned int height;
     unsigned int samples_per_launch;
     unsigned int num_lights_sample;
-
-    std::vector<BasicLight> point_light;                 // TODO: make light list
+    
+    BufferView<BasicLight> point_light;             // TODO: make light list
+    int point_light_sum;
     DirectionalLight sun;
     PreethamSunSky sky;
     float3       ambient_light_color;

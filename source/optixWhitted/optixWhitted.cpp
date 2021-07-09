@@ -700,12 +700,12 @@ public:
         hgr[idx].data.shading.glass = {
                 1e-2f,                                  // importance_cutoff
                 { 0.034f, 0.055f, 0.085f },             // cutoff_color
-                3.0f,                                   // fresnel_exponent
+                5.0f,                                   // fresnel_exponent
                 0.1f,                                   // fresnel_minimum
                 1.0f,                                   // fresnel_maximum
                 1.4f,                                   // refraction_index
                 { 1.0f, 1.0f, 1.0f },                   // refraction_color
-                { 1.0f, 1.0f, 1.0f },                   // reflection_color
+                { 0.5f, 0.5f, 0.5f },                   // reflection_color
                 { logf(.83f), logf(.83f), logf(.83f) }, // extinction_constant
                 { 0.6f, 0.6f, 0.6f },                   // shadow_attenuation
                 10,                                     // refraction_maxdepth
@@ -1168,8 +1168,7 @@ void initData();
 void saveData();
 // light
 
-std::vector<BasicLight> g_light;
-
+std::vector<BasicLight> g_light;;
 
 // to do: different pos in different time
 DirectionalLight sun;
@@ -1471,12 +1470,22 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 10u;
-    state.params.num_lights_sample = 3u;
-    state.params.point_light = g_light;
+    state.params.samples_per_launch = 5u;
+    state.params.num_lights_sample = 1u;
+    state.params.point_light_sum = static_cast<uint32_t>(g_light.size());
+    CUDA_CHECK(cudaMalloc(
+        reinterpret_cast<void**>(&state.params.point_light.data),
+        g_light.size() * sizeof(BasicLight)
+    ));
+    CUDA_CHECK(cudaMemcpy(
+        reinterpret_cast<void*>(state.params.point_light.data),
+        g_light.data(),
+        g_light.size() * sizeof(BasicLight),
+        cudaMemcpyHostToDevice
+    ));
     state.params.sun = sun;
     state.params.sky = sky;
-    state.params.ambient_light_color = make_float3( 0.3f, 0.3f, 0.3f );
+    state.params.ambient_light_color = make_float3( 0.1f, 0.1f, 0.1f );
     state.params.max_depth = max_trace;
     state.params.scene_epsilon = 1.e-4f;
 
@@ -3003,10 +3012,6 @@ int main( int argc, char* argv[] )
     sun.color = sky.sunColor() * sqrt_sun_scale * sqrt_sun_scale;
     sun.casts_shadow = 1;
 
-    g_light.push_back({
-        make_float3(60.0f, 40.0f, 0.0f),   // pos
-        make_float3(1.0f, 1.0f, 1.0f)      // color
-        });
     // Image credit: CC0Textures.com (https://cc0textures.com/)
     // Licensed under the Creative Commons CC0 License.
     load_texture_integrated("Wood049", WOOD);
@@ -3075,7 +3080,11 @@ int main( int argc, char* argv[] )
             make_float3( 0.0f, 0.0f, 16.0f ),
             make_float3( -16.0f, 0.01f, -8.0f )
         ));*/
-
+       g_light.push_back({
+        make_float3(8.0f, 6.0f, -0.4f),   // pos
+        make_float3(0.5f, 1.0f, 1.0f)      // color
+                });
+       modelLst.push_back(new cSphereShell({ 8.0f, 6.0f, -0.4f }, 0.49f,0.5f));
         initEntitySystem();
 
         initCameraState();

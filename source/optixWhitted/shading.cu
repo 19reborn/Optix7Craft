@@ -284,6 +284,7 @@ __device__ void phongShade( float3 p_Kd,
     float3 result = p_Ka * params.ambient_light_color * p_Kd;
     //float3 result = make_float3(0);
     
+    /*
     //sun light
     DirectionalLight sun = params.sun;
 
@@ -369,17 +370,19 @@ __device__ void phongShade( float3 p_Kd,
             result += p_Kr * traceSun(hit_point+p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation);
         }
     }
-   
+    */
+    
     // compute Point lightp
-    for (int light_id = 0; light_id < params.point_light.size(); light_id++) {
+    for (int light_id = 0; light_id < params.point_light_sum; light_id++) {
         BasicLight light = params.point_light[light_id];
         float Ldist = length(light.pos - hit_point);
-        float L = normalize(light.pos - hit_point);
+        float3 L = normalize(light.pos - hit_point);
         float nDl = dot(p_normal, L);
         float light_fade=1.0f;
         if (Ldist > 1.0f) {
             light_fade = 1.0f/(Ldist * Ldist);
         }
+        light_fade = 1.0f;
         // cast shadow ray
         if (nDl > 0.0f)
         {
@@ -388,10 +391,10 @@ __device__ void phongShade( float3 p_Kd,
 
             optixTrace(
                 params.handle,
-                hit_point,
+                hit_point+p_normal*params.scene_epsilon,
                 L,
                 0.01f,
-                Ldist,
+                Ldist-0.01f,
                 0.0f,
                 OptixVisibilityMask(1),
                 OPTIX_RAY_FLAG_NONE,
@@ -415,7 +418,7 @@ __device__ void phongShade( float3 p_Kd,
                 if (nDh > 0)
                 {
                     float power = pow(nDh, p_phong_exp);
-                    result += p_Ks * power * Lc;
+                    result += p_Ks * power * Lc * light_fade;
                 }
 
             }
@@ -425,7 +428,7 @@ __device__ void phongShade( float3 p_Kd,
 
         float new_importance = sun_prd->importance * luminance(p_Kr);
         int new_depth = sun_prd->depth + 1;
-
+        
         // reflection ray
         // compare new_depth to max_depth - 1 to leave room for a potential shadow ray trace
         if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
@@ -434,10 +437,9 @@ __device__ void phongShade( float3 p_Kd,
 
             result += p_Kr * traceSun(hit_point, R, new_depth, new_importance, sun_prd->attenuation*light_fade);
         }
-
+       
     }
-
-
+    
   
     sun_prd->radiance = result;
     unsigned int u0, u1;
@@ -517,6 +519,15 @@ extern "C" __global__ void __closesthit__glass_radiance()
 
     //RadiancePRD prd_radiance = getRadiancePRD();
     SunPRD * sun_prd = getPRD<SunPRD>();
+
+    if (sun_prd->countEmitted) {
+        sun_prd->emitted = make_float3(0.6,0.7,0.8);//物体本身发光
+    }
+    else
+        sun_prd->emitted = make_float3(0.0f);
+
+    //sun_prd->attenuation *= p_Kd;
+    sun_prd->countEmitted = false;
 
     float3 object_normal = make_float3(
         int_as_float( optixGetAttribute_0() ),

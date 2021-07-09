@@ -110,6 +110,7 @@ extern "C" __global__ void __raygen__pinhole_camera()
         sun_prd.done = false;
         sun_prd.attenuation = make_float3(1.0f);
         sun_prd.emitted = make_float3(0.0f);
+        sun_prd.countEmitted = true;
         // light from a light source or miss program
         sun_prd.radiance = make_float3(0.0f);
         // next ray to be traced
@@ -134,7 +135,7 @@ extern "C" __global__ void __raygen__pinhole_camera()
                 RAY_TYPE_RADIANCE,
                 u0,
                 u1);
-
+            //printf("%f,%f,%f\n", sun_prd.emitted.x, sun_prd.emitted.y, sun_prd.emitted.z);
             result += sun_prd.emitted;
             result += sun_prd.radiance * sun_prd.attenuation;
 
