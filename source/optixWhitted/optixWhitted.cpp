@@ -77,6 +77,17 @@ using std::unordered_map;
 
 //--------------------------------------------------------------------------- ---
 //
+// Settings
+//
+//------------------------------------------------------------------------------
+
+//Particles settings
+constexpr const bool              isParticle = true;
+//Sun height
+bool              renewShadowOnTime = false;
+
+//--------------------------------------------------------------------------- ---
+//
 // Globals
 //
 //------------------------------------------------------------------------------
@@ -112,12 +123,6 @@ const int         max_trace = 10;
 // Model state
 bool              model_need_update = false;
 
-
-//Particles settings
-bool              isParticle = true;
-
-//Sun height
-bool              renewShadowOnTime = false;
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -909,7 +914,7 @@ bool get_model_at(float3 pos, cModel*& pmodel) {
 void load_texture(std::string file_name, const std::string & name) {
     std::string relaPath = "Textures/" + file_name;
     std::string textureFilename(sutil::sampleDataFilePath(relaPath.c_str()));
-    // std::cerr << "[INFO] path: " << textureFilename << std::endl;
+    std::cerr << "[INFO] path: " << textureFilename << std::endl;
     int2 res;
     int   comp;
     unsigned char* image = stbi_load(textureFilename.c_str(),
@@ -2872,7 +2877,7 @@ int main( int argc, char* argv[] )
     load_texture_integrated("Metal003", IRON);
     load_texture_integrated("bark1", BARK);
     load_texture("stripped_oak_log_top.png", "BARK_top_diffuse");
-    load_texture_integrated("Grass001", LEAF);
+    load_texture_integrated("Leaves002", LEAF);
     //
     // Parse command line options
     //
