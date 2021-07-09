@@ -40,22 +40,22 @@ static __device__ float2 get_coord(float3 relativeCoord, float3 size)
 
 static __device__ cube_face get_face(float3 relativeCoord, float3 size)
 {
-    if (relativeCoord.x == size.x) {
+    if (fabs(relativeCoord.x -size.x) <=1e-4) {
         return x_up;
     }
-    else if (relativeCoord.x == -size.x) {
+    else if (fabs(relativeCoord.x +size.x)<=1e-4) {
         return x_down;
     }
-    else if (relativeCoord.y == size.y) {
+    else if (fabs(relativeCoord.y -size.y)<=1e-4) {
         return y_up;
     }
-    else if (relativeCoord.y == -size.y) {
+    else if (fabs(relativeCoord.y +size.y)<=1e-4) {
         return y_down;
     }
-    else if (relativeCoord.z == size.z) {
+    else if (fabs(relativeCoord.z -size.z)<=1e-4) {
         return z_up;
     }
-    else if (relativeCoord.z == -size.z) {
+    else if (fabs(relativeCoord.z +size.z)<=1e-4) {
         return z_down;
     }
 }
