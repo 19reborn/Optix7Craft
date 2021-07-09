@@ -355,6 +355,11 @@ enum ModelTexture { // 记得也填get_texture_name
     WATER,
     BARK,
     LEAF,
+    GRAVEL,
+    GOLD,
+    CHINA,
+    STEEL,
+    ROCK,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -371,6 +376,10 @@ string get_texture_name(ModelTexture tex_id) {
         case WATER: return "WATER";
         case BARK: return "BARK";
         case LEAF: return "LEAF";
+        case GRAVEL: return "GRAVEL";
+        case GOLD: return "GOLD";
+        case CHINA: return "CHINA";
+        case STEEL: return "STEEL";
         default: return "ERROR";
     }
 }
@@ -547,7 +556,7 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 { 0.0f, 0.0f, 0.0f },   // Kr 
                 1                      // phong_exp
         };
-        if(texture_id == IRON) {
+        if(texture_id == IRON || texture_id == GOLD || texture_id == STEEL) {
             hgr[idx].data.shading.metal.Kr = {0.6f, 0.6f, 0.6f};
         }
         hgr[idx].data.has_diffuse = true;
@@ -573,7 +582,9 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
 
         if(texture_id == IRON 
         || texture_id == GRASS 
-        || texture_id == BARK) {
+        || texture_id == BARK
+        || texture_id == GOLD
+        || texture_id == STEEL) {
             hgr[idx].data.has_normal = false;
         } else {
             hgr[idx].data.has_normal = true;
@@ -3398,6 +3409,11 @@ int main( int argc, char* argv[] )
     load_texture_integrated("bark1", BARK);
     load_texture("stripped_oak_log_top.png", "BARK_top_diffuse");
     load_texture_integrated("Leaves002", LEAF);
+    load_texture_integrated("Gravel022", GRAVEL);
+    load_texture_integrated("Metal034", GOLD);
+    load_texture_integrated("Tiles101", CHINA);
+    load_texture_integrated("MetalPlates006", STEEL);
+    load_texture_integrated("Rock030", ROCK);
     //
     // Parse command line options
     //
