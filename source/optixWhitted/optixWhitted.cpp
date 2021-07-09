@@ -2975,7 +2975,7 @@ int main( int argc, char* argv[] )
 
 
                     //----------------------------sun updating----------------------------
-                    float sunAngle = sunAngleScaling(0.f + glfwGetTime() / 240 * (0.5f * M_PI - 0.f));
+                    float sunAngle = sunAngleScaling(1.1f + glfwGetTime() / 240 * (0.5f * M_PI - 0.f));
                     //std::cout << sunAngle << std::endl;
                     sky.setSunTheta(sunAngle);
                     sun.direction = sky.getSunDir();
