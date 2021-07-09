@@ -1142,10 +1142,8 @@ const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 void initData();
 void saveData();
 // light
-const BasicLight g_light = {
-        make_float3( 60.0f, 40.0f, 0.0f ),   // pos
-        make_float3( 1.0f, 1.0f, 1.0f )      // color
-};
+
+std::vector<BasicLight> g_light;
 
 
 // to do: different pos in different time
@@ -1449,10 +1447,11 @@ void initLaunchParams( WhittedState& state )
 
     state.params.subframe_index = 0u;
     state.params.samples_per_launch = 10u;
-    state.params.light = g_light;
+    state.params.num_lights_sample = 3u;
+    state.params.point_light = g_light;
     state.params.sun = sun;
     state.params.sky = sky;
-    state.params.ambient_light_color = make_float3( 0.4f, 0.4f, 0.4f );
+    state.params.ambient_light_color = make_float3( 0.3f, 0.3f, 0.3f );
     state.params.max_depth = max_trace;
     state.params.scene_epsilon = 1.e-4f;
 
@@ -2838,7 +2837,7 @@ int main( int argc, char* argv[] )
     //Split out sun for direct sampling
     sun.direction = sky.getSunDir();
     Onb onb(sun.direction);
-    sun.radius = DEFAULT_SUN_RADIUS;
+    sun.radius = DEFAULT_SUN_RADIUS/15;
     sun.v0 = onb.m_tangent;
     sun.v1 = onb.m_binormal;
     //float3 dir({ 1.0f,0.0f,0.0f });
@@ -2848,7 +2847,10 @@ int main( int argc, char* argv[] )
     sun.color = sky.sunColor() * sqrt_sun_scale * sqrt_sun_scale;
     sun.casts_shadow = 1;
 
-
+    g_light.push_back({
+        make_float3(60.0f, 40.0f, 0.0f),   // pos
+        make_float3(1.0f, 1.0f, 1.0f)      // color
+        });
     // Image credit: CC0Textures.com (https://cc0textures.com/)
     // Licensed under the Creative Commons CC0 License.
     load_texture_integrated("Wood049", WOOD);

@@ -281,8 +281,8 @@ __device__ void phongShade( float3 p_Kd,
 
     // ambient contribution
 
-    float3 result = p_Ka * params.ambient_light_color;
-    
+    float3 result = p_Ka * params.ambient_light_color * p_Kd;
+    //float3 result = make_float3(0);
     
     //sun light
     DirectionalLight sun = params.sun;
@@ -296,7 +296,7 @@ __device__ void phongShade( float3 p_Kd,
     //onb.inverse_transform(w_in);
     //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
 
-    //sun_prd->origin = hit_point;
+    //sun_prd->origin = hit_point + p_normal * params.scene_epsilon;
     //sun_prd->direction = w_in;
 
     //sun_prd->attenuation *= 1;
@@ -305,54 +305,55 @@ __device__ void phongShade( float3 p_Kd,
     // The pdf for a directional area light is 1/solid_angle.
 
     // 增加软阴影
-    const float3 light_center = hit_point + sun.direction;
-    const float r1 = rnd(sun_prd->seed);
-    const float r2 = rnd(sun_prd->seed);
-    const float2 disk_sample = square_to_disk(make_float2(r1, r2));
-    const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
-    float3 L = normalize(jittered_pos - hit_point);
+    //float3 shadow_result = make_float3(0.0f);
+    const int numLightSamples = params.num_lights_sample;
+    for (int lightSampleID = 0; lightSampleID < numLightSamples; lightSampleID++) {
+        const float3 light_center = hit_point + sun.direction;
+        const float r1 = rnd(sun_prd->seed);
+        const float r2 = rnd(sun_prd->seed);
+        const float2 disk_sample = square_to_disk(make_float2(r1, r2));
+        const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
+        float3 L = normalize(jittered_pos - hit_point);
+        //const float  LnDl = -dot(sun.direction, L);
+        //float3 L = normalize(sun.direction);
+        const float NdotL = dot(p_normal, L);
+        //float weight = 0.0f;
+        if (NdotL > 0.0f) {
+            OcclusionPRD shadow_prd;
+            shadow_prd.attenuation = make_float3(1.0f);
 
-    //float3 L = normalize(sun.direction);
-    
-    const float NdotL = dot(p_normal, L);
-    if (NdotL > 0.0f) {
-        OcclusionPRD shadow_prd;
-        shadow_prd.attenuation = make_float3(1.0f);
+            optixTrace(
+                params.handle,
+                hit_point + p_normal * params.scene_epsilon,
+                L,
+                0.01f,
+                1e16, //平行光从无限远处射出
+                0.0f,
+                OptixVisibilityMask(1),
+                OPTIX_RAY_FLAG_NONE,
+                RAY_TYPE_OCCLUSION,
+                RAY_TYPE_COUNT,
+                RAY_TYPE_OCCLUSION,
+                float3_as_args(shadow_prd.attenuation));
 
-        optixTrace(
-            params.handle,
-            hit_point + p_normal* params.scene_epsilon,
-            L,
-            0.01f,
-            1e16, //平行光从无限远处射出
-            0.0f,
-            OptixVisibilityMask(1),
-            OPTIX_RAY_FLAG_NONE,
-            RAY_TYPE_OCCLUSION,
-            RAY_TYPE_COUNT,
-            RAY_TYPE_OCCLUSION,
-            float3_as_args(shadow_prd.attenuation));
+            float3 light_attenuation = shadow_prd.attenuation;
 
-        float3 light_attenuation = shadow_prd.attenuation;
-
-        if (fmaxf(light_attenuation) > 0.0f)
-        {
-            const float solid_angle = sun.radius * sun.radius * M_PIf;
-
-            float3 Lc = light_attenuation * tonemap(sun.color * solid_angle);
-
-            result += p_Kd * NdotL * Lc;
-
-            float3 H = normalize(L - ray_dir);
-            float nDh = dot(p_normal, H);
-            if (nDh > 0)
+            if (fmaxf(light_attenuation) > 0.0f)
             {
-                float power = pow(nDh, p_phong_exp);
-                result += p_Ks * power * Lc;
+                const float solid_angle = sun.radius * sun.radius * M_PIf;
+                float3 Lc = light_attenuation * tonemap(sun.color * solid_angle);
+                result += p_Kd * NdotL * Lc / numLightSamples;
+                //result += p_Kd * NdotL * LnDl * Lc ;
+                float3 H = normalize(L - ray_dir);
+                float nDh = dot(p_normal, H);
+                if (nDh > 0)
+                {
+                    float power = pow(nDh, p_phong_exp);
+                    result += p_Ks * power * Lc/ numLightSamples;
+                }
             }
         }
     }
-    
     //反射
     if (fmaxf(p_Kr) > 0)
     {
@@ -368,69 +369,73 @@ __device__ void phongShade( float3 p_Kd,
             result += p_Kr * traceSun(hit_point+p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation);
         }
     }
-    
-    /*
-    // compute Point light
-    BasicLight light = params.light;
-    float Ldist = length(light.pos - hit_point);
-    L = normalize(light.pos - hit_point);
-    float nDl = dot( p_normal, L);
-
-    // cast shadow ray
-    if (nDl > 0.0f)
-    {
-        OcclusionPRD shadow_prd;
-        shadow_prd.attenuation = make_float3(1.0f);
-
-        optixTrace(
-            params.handle,
-            hit_point,
-            L,
-            0.01f,
-            Ldist,
-            0.0f,
-            OptixVisibilityMask(1),
-            OPTIX_RAY_FLAG_NONE,
-            RAY_TYPE_OCCLUSION,
-            RAY_TYPE_COUNT,
-            RAY_TYPE_OCCLUSION,
-            float3_as_args(shadow_prd.attenuation));
-
-        float3 light_attenuation = shadow_prd.attenuation;
-
-        // If not completely shadowed, light the hit point
-        if (fmaxf(light_attenuation) > 0.0f)
-        {
-            float3 Lc = light.color * light_attenuation;
-
-            result += p_Kd * nDl * Lc;
-
-            float3 H = normalize(L - ray_dir);
-            float nDh = dot(p_normal, H);
-            if (nDh > 0)
-            {
-                float power = pow(nDh, p_phong_exp);
-                result += p_Ks * power * Lc;
-            }
-
+   
+    // compute Point lightp
+    for (int light_id = 0; light_id < params.point_light.size(); light_id++) {
+        BasicLight light = params.point_light[light_id];
+        float Ldist = length(light.pos - hit_point);
+        float L = normalize(light.pos - hit_point);
+        float nDl = dot(p_normal, L);
+        float light_fade=1.0f;
+        if (Ldist > 1.0f) {
+            light_fade = 1.0f/(Ldist * Ldist);
         }
+        // cast shadow ray
+        if (nDl > 0.0f)
+        {
+            OcclusionPRD shadow_prd;
+            shadow_prd.attenuation = make_float3(1.0f);
+
+            optixTrace(
+                params.handle,
+                hit_point,
+                L,
+                0.01f,
+                Ldist,
+                0.0f,
+                OptixVisibilityMask(1),
+                OPTIX_RAY_FLAG_NONE,
+                RAY_TYPE_OCCLUSION,
+                RAY_TYPE_COUNT,
+                RAY_TYPE_OCCLUSION,
+                float3_as_args(shadow_prd.attenuation));
+
+            float3 light_attenuation = shadow_prd.attenuation;
+
+
+            // If not completely shadowed, light the hit point
+            if (fmaxf(light_attenuation) > 0.0f)
+            {
+                float3 Lc = light.color * light_attenuation;
+
+                result += p_Kd * nDl * Lc*light_fade;
+
+                float3 H = normalize(L - ray_dir);
+                float nDh = dot(p_normal, H);
+                if (nDh > 0)
+                {
+                    float power = pow(nDh, p_phong_exp);
+                    result += p_Ks * power * Lc;
+                }
+
+            }
+        }
+
+        // ray tree attenuation
+
+        float new_importance = sun_prd->importance * luminance(p_Kr);
+        int new_depth = sun_prd->depth + 1;
+
+        // reflection ray
+        // compare new_depth to max_depth - 1 to leave room for a potential shadow ray trace
+        if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
+        {
+            float3 R = reflect(ray_dir, p_normal);
+
+            result += p_Kr * traceSun(hit_point, R, new_depth, new_importance, sun_prd->attenuation*light_fade);
+        }
+
     }
-
-    // ray tree attenuation
-    
-    float new_importance = sun_prd->importance * luminance(p_Kr);
-    int new_depth = sun_prd->depth + 1;
-
-    // reflection ray
-    // compare new_depth to max_depth - 1 to leave room for a potential shadow ray trace
-    if (new_importance >= 0.01f && new_depth <= params.max_depth - 1)
-    {
-        float3 R = reflect(ray_dir, p_normal);
-
-        result += p_Kr * traceSun(hit_point, R, new_depth, new_importance,sun_prd->attenuation);
-    }
-    
-    */
 
 
   
@@ -841,6 +846,7 @@ extern "C" __global__ void __closesthit__transparency_radiance()
 
     /*
     // compute Point light
+
     BasicLight light = params.light;
     float Ldist = length(light.pos - hit_point);
     float3 L = normalize(light.pos - hit_point);
@@ -992,10 +998,10 @@ extern "C" __global__ void __closesthit__water_radiance()
     const float z1 = rnd(sun_prd->seed);
     const float z2 = rnd(sun_prd->seed);
 
-    float3 w_in;
-    cosine_sample_hemisphere(z1, z2, w_in);
-    const Onb onb(p_normal);
-    onb.inverse_transform(w_in);
+    //float3 w_in;
+   //cosine_sample_hemisphere(z1, z2, w_in);
+    //const Onb onb(p_normal);
+    //onb.inverse_transform(w_in);
     //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
 
     //sun_prd->origin = hit_point;
@@ -1005,13 +1011,13 @@ extern "C" __global__ void __closesthit__water_radiance()
     // Add direct light sample weighted by shadow term and 1/probability.
     // The pdf for a directional area light is 1/solid_angle.
 
-    const float3 light_center = hit_point + sun.direction;
-    const float r1 = rnd(sun_prd->seed);
-    const float r2 = rnd(sun_prd->seed);
-    const float2 disk_sample = square_to_disk(make_float2(r1, r2));
-    const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
-    float3 L = normalize(jittered_pos - hit_point);
-
+    //const float3 light_center = hit_point + sun.direction;
+    //const float r1 = rnd(sun_prd->seed);
+    //const float r2 = rnd(sun_prd->seed);
+    //const float2 disk_sample = square_to_disk(make_float2(r1, r2));
+    //const float3 jittered_pos = light_center + sun.radius * disk_sample.x * sun.v0 + sun.radius * disk_sample.y * sun.v1;
+    //float3 L = normalize(jittered_pos - hit_point);
+    float3 L = normalize(sun.direction);
 
     const float NdotL = dot(p_normal, L);
     if (NdotL > 0.0f) {

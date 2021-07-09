@@ -39,6 +39,7 @@
 
 #include "sunsky.hpp"
 
+
 enum RayType
 {
     RAY_TYPE_RADIANCE  = 0,
@@ -52,6 +53,7 @@ struct BasicLight
     float3  pos;
     float3  color;
 };
+
 
 struct DirectionalLight
 {
@@ -73,8 +75,9 @@ struct Params
     unsigned int width;
     unsigned int height;
     unsigned int samples_per_launch;
+    unsigned int num_lights_sample;
 
-    BasicLight   light;                 // TODO: make light list
+    std::vector<BasicLight> point_light;                 // TODO: make light list
     DirectionalLight sun;
     PreethamSunSky sky;
     float3       ambient_light_color;
