@@ -35,6 +35,10 @@ git clone https://github.com/19reborn/Ray-Tracing-Project.git
 - <kbd>Space</kbd> Jump
 - <kbd>M</kbd> Fly Mode
 - <kbd>F</kbd> Get the same block as targeted 
+- <kbd>B</kbd> Switch to *thinner* block
+- <kbd>L</kbd> Place light
+- <kbd>T</kbd> Particle effect switch
+- <kbd>G</kbd> /tp spawn
 - <kbd>Left Ctrl</kbd> Landing in Fly Mode
 - <kbd>F5</kbd> Save
 - <kbd>F6</kbd> Activate real-time shadow

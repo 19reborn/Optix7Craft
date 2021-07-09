@@ -121,6 +121,12 @@ const int         max_trace = 10;
 // Model state
 bool              model_need_update = false;
 
+enum BlockSize {
+    NORM,
+    THIN,
+    BS_SIZE
+} CurSize;
+
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -538,7 +544,7 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
                 { 0.2f, 0.5f, 0.5f },   // Ka
                 { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
                 { 0.2f, 0.2f, 0.2f },   // Ks
-                { 0.01f, 0.01f, 0.01f },   // Kr 
+                { 0.0f, 0.0f, 0.0f },   // Kr 
                 1                      // phong_exp
         };
         if(texture_id == IRON) {
@@ -737,14 +743,14 @@ public:
     Cube args;
 
     explicit cCube(float3 c, float s, ModelTexture tex_id=NONE): 
-        cModel(CollideBox(c, {s, s, s}), tex_id) {
+        cModel(CollideBox(c, {ceil(2*s)/2.f, ceil(2*s)/2.f, ceil(2*s)/2.f}), tex_id) {
         args.center = c;
         args.size = {s, s, s};
         collidable = true;
     }
 
     explicit cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
-        cModel(CollideBox(c, s), tex_id) {
+        cModel(CollideBox(c, { ceil(s.x * 2) / 2, ceil(s.y * 2) / 2, ceil(s.z * 2) / 2 }), tex_id) {
         args.center = c;
         args.size = s;
         collidable = true;
@@ -1236,7 +1242,10 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
                 CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f,0.5f,0.5f));
                 if (!CollideBox::collide_check(control->box, tmpCLBOX))
                 {
-                    modelLst.push_back(new cCube(target, 0.5f, curTexture));
+                    float size = 0;
+                    if (CurSize == NORM) size = 0.5;
+                    else if (CurSize == THIN) size = 0.10;
+                    modelLst.push_back(new cCube(target, {size, 0.5, size}, curTexture));
                     model_need_update = true;
                 }
 
@@ -1408,6 +1417,10 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         if (key == GLFW_KEY_G)
         {
             control->dX(make_float3(8.0f, 19.7f, -4.0f) - control->pos);
+        }
+
+        if (key == GLFW_KEY_B) {
+            CurSize = (BlockSize)((CurSize + 1) % BS_SIZE);
         }
 
         if (key == GLFW_KEY_L) {
