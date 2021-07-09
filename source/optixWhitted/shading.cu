@@ -290,10 +290,10 @@ __device__ void phongShade( float3 p_Kd,
     const float z1 = rnd(sun_prd->seed);
     const float z2 = rnd(sun_prd->seed);
 
-    float3 w_in;
-    cosine_sample_hemisphere(z1, z2, w_in);
-    const Onb onb(p_normal);
-    onb.inverse_transform(w_in);
+    //float3 w_in;
+    //cosine_sample_hemisphere(z1, z2, w_in);
+    //const Onb onb(p_normal);
+    //onb.inverse_transform(w_in);
     //const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, hit_point );
 
     //sun_prd->origin = hit_point;
@@ -313,7 +313,7 @@ __device__ void phongShade( float3 p_Kd,
     float3 L = normalize(jittered_pos - hit_point);
 
     //float3 L = normalize(sun.direction);
-
+    
     const float NdotL = dot(p_normal, L);
     if (NdotL > 0.0f) {
         OcclusionPRD shadow_prd;
@@ -321,7 +321,7 @@ __device__ void phongShade( float3 p_Kd,
 
         optixTrace(
             params.handle,
-            hit_point,
+            hit_point + p_normal* params.scene_epsilon,
             L,
             0.01f,
             1e16, //平行光从无限远处射出
@@ -368,12 +368,12 @@ __device__ void phongShade( float3 p_Kd,
             result += p_Kr * traceSun(hit_point+p_normal * params.scene_epsilon, R, new_depth, new_importance, sun_prd->attenuation);
         }
     }
-
+    
     /*
     // compute Point light
     BasicLight light = params.light;
     float Ldist = length(light.pos - hit_point);
-    float3 L = normalize(light.pos - hit_point);
+    L = normalize(light.pos - hit_point);
     float nDl = dot( p_normal, L);
 
     // cast shadow ray
@@ -427,7 +427,7 @@ __device__ void phongShade( float3 p_Kd,
     {
         float3 R = reflect(ray_dir, p_normal);
 
-        result += p_Kr * traceSun(hit_point, R, new_depth, new_importance);
+        result += p_Kr * traceSun(hit_point, R, new_depth, new_importance,sun_prd->attenuation);
     }
     
     */
@@ -685,6 +685,9 @@ extern "C" __global__ void __closesthit__texture_radiance()
 
     //得到交点位于立方体的哪个面（y轴是天空方向）
     cube_face face = cube_face(optixGetAttribute_5());
+    //coord.x = 0.3;
+    //coord.y = 0.3;
+    //printf("%.8f,%.8f\n", coord.x, coord.y);
     if (sbt_data->has_normal) {
         shade_normal = make_float3(tex2D<float4>(sbt_data->normal_map, coord.x, coord.y)) * 2 - 1.0f;
         //printf("%f,%f,%f\n", shade_normal.x, shade_normal.y, shade_normal.z);
@@ -713,13 +716,18 @@ extern "C" __global__ void __closesthit__texture_radiance()
             phong.Kd = make_float3(tex2D<float4>(sbt_data->diffuse_map_z_down, coord.x, coord.y));
     }
     if (sbt_data->has_roughness) {
-        phong.phong_exp = 1.0f / (tex2D<float>(sbt_data->roughness_map, coord.x, coord.y));
+        //float4 test = tex2D<float4>(sbt_data->roughness_map, coord.x, coord.y);
+        phong.phong_exp = 1.0f / (tex2D<float4>(sbt_data->roughness_map, coord.x, coord.y).x);
+        //printf("%f,%f,%f,%f\n", test.x, test.y, test.z, test.w);
     }
     //normalize(shade_normal);
     //float3 world_geo_normal = normalize(optixTransformNormalFromObjectToWorldSpace(geometry_normal));
     float3 world_shade_normal = normalize(optixTransformNormalFromObjectToWorldSpace(shade_normal));
     float3 ffnormal = faceforward(world_shade_normal, -optixGetWorldRayDirection(), world_shade_normal);
-
+    //printf("%.8f,%.8f,%.8f\n", phong.Kd.x, phong.Kd.y, phong.Kd.z);
+    //phong.Kd = make_float3(0.2,0.6,0.4);
+   // SunPRD* sun_prd = getPRD<SunPRD>();
+    //sun_prd->radiance = make_float3(phong.Kd.x, phong.Kd.y, phong.Kd.z);
     phongShade(phong.Kd, phong.Ka, phong.Ks, phong.Kr, phong.phong_exp, ffnormal);
 
 }
@@ -1012,7 +1020,7 @@ extern "C" __global__ void __closesthit__water_radiance()
 
         optixTrace(
             params.handle,
-            hit_point,
+            hit_point+ p_normal * params.scene_epsilon,
             L,
             0.01f,
             1e16,

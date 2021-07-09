@@ -287,7 +287,7 @@ struct texture_map {
     unsigned int * pixel{ nullptr };
     int2     resolution{ -1 };
     
-    cudaTextureObject_t textureObject;
+    cudaTextureObject_t textureObject = 0;
 };
 
 enum cube_face
