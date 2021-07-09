@@ -380,6 +380,7 @@ string get_texture_name(ModelTexture tex_id) {
         case GOLD: return "GOLD";
         case CHINA: return "CHINA";
         case STEEL: return "STEEL";
+        case ROCK: return "ROCK";
         default: return "ERROR";
     }
 }
