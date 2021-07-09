@@ -1223,7 +1223,7 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
         {
             if (istargeted)
             {
-                if(isParticle) createParticles_Blockdestroy(intersectBlock->get_center(), intersectBlock->texture_id);
+                //if(isParticle) createParticles_Blockdestroy(intersectBlock->get_center(), intersectBlock->texture_id);
                 for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end(); ++it)
                 {
                     if (*it == intersectBlock)
@@ -2752,16 +2752,6 @@ void initData()
         }
     }
 
-
-    for (register int i = -50; i <= 50; i++)
-    {
-        for (register int j = -50; j <= 50; j++)
-        {
-            std::cout << worldHeightList[i + 50][j + 50] << " ";
-        }
-        std::cout << std::endl;
-    }
-    system("pause");
     //地板铺完，开始放树
     srand(yeshouxianbei);
     for (register int i = -50; i <= 50; i++)
@@ -2820,7 +2810,6 @@ void initData()
             if (worldIntList[i + 50][j + 50]) isTree[i + 50][j + 50] = true;
         }
     }
-    system("pause");
 
 
     for (register int i = -50; i <= 50; i++)
@@ -2934,6 +2923,7 @@ void updateParticle(float dt)//the motion of particles in dt time
 }
 void updateCreature(float dt)//the motion of entities in dt time
 {
+    //std::cout << control->isOnGround << std::endl;
     if (!switchcam)
     {
         control->lookat = camera.lookat();
@@ -2974,10 +2964,10 @@ void updateCreature(float dt)//the motion of entities in dt time
                 if (ent->velocity.y <= 0)
                 {
                     cModel* entCollideATBlockhere = nullptr;
-                    if (get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
+                    /*if (get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
                     {
                         createParticles_planeBounce(ent->box.center - ent->box.size - make_float3(0.2f,0.f,0.2f), -0.4 * ent->velocity.y, 4.f, 2, 10, 0.01f, entCollideATBlockhere->texture_id);
-                    }
+                    }*/
                     ent->isOnGround = true;
                 }
                 ent->dy(-ent->velocity.y * dt);
