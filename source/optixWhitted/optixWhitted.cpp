@@ -526,8 +526,8 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         hgr[idx].data.shading.glass = {
                 1e-2f,                                  // importance_cutoff
                 { 0.034f, 0.055f, 0.085f },             // cutoff_color
-                3.0f,                                   // fresnel_exponent(增大反射小）
-                0.1f,                                   // fresnel_minimum
+                8.0f,                                   // fresnel_exponent(增大反射小）
+                0.5f,                                   // fresnel_minimum
                 1.0f,                                   // fresnel_maximum
                 1.4f,                                   // refraction_index
                 { 1.0f, 1.0f, 1.0f },                   // refraction_color
