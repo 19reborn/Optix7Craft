@@ -67,12 +67,10 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <map>
 #include <unordered_map>
 #include <fstream>
 using std::vector;
 using std::string;
-using std::map;
 using std::unordered_map;
 
 //--------------------------------------------------------------------------- ---
@@ -370,6 +368,9 @@ string get_texture_name(ModelTexture tex_id) {
         default: return "ERROR";
     }
 }
+
+// light
+std::vector<BasicLight> g_light;
 
 class cModel {
 public:
@@ -891,6 +892,14 @@ public:
     void move_to(float3 pos) {}
 };
 
+class cLightSphere: public cSphereShell {
+public:
+    explicit cLightSphere(float3 pos, float3 color, float radius, ModelTexture tex_id=NONE):
+    cSphereShell(pos, radius-.1f, radius, tex_id) {
+        g_light.push_back({pos, color});
+    }
+};
+
 vector<cModel*> modelLst;
 
 //Interation Variables
@@ -922,7 +931,7 @@ bool get_model_at(float3 pos, cModel*& pmodel) {
 void load_texture(std::string file_name, const std::string & name) {
     std::string relaPath = "Textures/" + file_name;
     std::string textureFilename(sutil::sampleDataFilePath(relaPath.c_str()));
-    std::cerr << "[INFO] path: " << textureFilename << std::endl;
+    // std::cerr << "[INFO] path: " << textureFilename << std::endl;
     int2 res;
     int   comp;
     unsigned char* image = stbi_load(textureFilename.c_str(),
@@ -1166,9 +1175,6 @@ const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 // data manipulation
 void initData();
 void saveData();
-// light
-
-std::vector<BasicLight> g_light;;
 
 // to do: different pos in different time
 DirectionalLight sun;
@@ -3293,25 +3299,8 @@ int main( int argc, char* argv[] )
         //
         // Add basic models
         //
-        /*for(int i=0; i<10; i++) {
-            for(int j=0; j<10; j++) {
-                modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, GRASS));
-            }
-        }
-        modelLst.push_back(new cCube({2.5f, 1.5f, 3.5f}, 0.5f, WOOD));
-        modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
-        modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));*/
         initData();
-        /*modelLst.push_back(new cRect(
-            make_float3( 32.0f, 0.0f, 0.0f ),
-            make_float3( 0.0f, 0.0f, 16.0f ),
-            make_float3( -16.0f, 0.01f, -8.0f )
-        ));*/
-       g_light.push_back({
-        make_float3(8.0f, 6.0f, -0.4f),   // pos
-        make_float3(0.5f, 1.0f, 1.0f)      // color
-                });
-       modelLst.push_back(new cSphereShell({ 8.0f, 6.0f, -0.4f }, 0.49f,0.5f));
+        modelLst.push_back(new cLightSphere({ 8.0f, 6.0f, -0.4f }, {0.5f, 1.0f, 1.0f}, 0.5f));
         initEntitySystem();
 
         initCameraState();
