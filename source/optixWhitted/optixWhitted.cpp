@@ -80,7 +80,7 @@ using std::unordered_map;
 //------------------------------------------------------------------------------
 
 //Particles settings
-constexpr const bool              isParticle = true;
+bool              isParticle = true;
 //Sun height
 bool              renewShadowOnTime = false;
 
@@ -1150,7 +1150,7 @@ void createParticles_Blockdestroy(float3& place, ModelTexture texture_id)
             place + make_float3(breakX, breakY, breakZ),
             make_float3(breakX * 10.f, breakY * 10.f, breakZ * 10.f),
             make_float3(randz, randz, randz),
-            0.5f,
+            0.25f,
             texture_id
         );
     }
@@ -1234,7 +1234,7 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
         {
             if (istargeted)
             {
-                //if(isParticle) createParticles_Blockdestroy(intersectBlock->get_center(), intersectBlock->texture_id);
+                if(isParticle) createParticles_Blockdestroy(intersectBlock->get_center(), intersectBlock->texture_id);
                 for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end(); ++it)
                 {
                     if (*it == intersectBlock)
@@ -1381,7 +1381,12 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         }
         
         if (key == GLFW_KEY_T) {
-            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f, NONE);
+            isParticle = !isParticle;
+            std::cout << "isParticle = " << isParticle << std::endl;
+        }
+        if (key == GLFW_KEY_G)
+        {
+            control->dX(make_float3(8.0f, 19.7f, -4.0f) - control->pos);
         }
     }
     else if (action == GLFW_RELEASE)
@@ -1405,10 +1410,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         }
 
     }
-    else if( key == GLFW_KEY_G )
-    {
-        // toggle UI draw
-    }
+    
 }
 
 //------------------------------------------------------------------------------
@@ -2853,6 +2855,60 @@ void initData()
     
 
 }
+int readData()
+{
+    std::cout << "Select your saves:" << std::endl;
+    std::cout << "       0 : Auto generate" << std::endl;
+    std::cout << "       1 : Creator" << std::endl;
+    std::cout << "       2 : Test" << std::endl;
+    std::cout << "       3 : Presentor1" << std::endl;
+    int savefilenum = -1;
+    while (scanf_s("%d",&savefilenum) != 1)
+    {
+        std::cout << "input_error : please imput an int" << std::endl;
+    }
+    if (!(savefilenum >= 0 && savefilenum <= 3))
+    {
+        std::cout << "intput_error : number error" << std::endl;
+        return 1;
+    }
+    if (savefilenum == 0)
+    {
+        initData();
+    }
+    else if (savefilenum == 1)
+    {
+        std::ifstream savefile(sutil::sampleDataFilePath("Saves/SAVE0.txt"), std::ios::in);
+        if (!savefile)
+        {
+            std::cout << "failed to load savefiles" << std::endl;
+            return 1;
+        }
+        else {
+            int savecnt = 0;
+            float savedx, savedy, savedz, saveds;
+            int savedTexture;
+            while (!savefile.eof())
+            {
+                savecnt++;
+                savefile >> savedx >> savedy >> savedz >> saveds >> savedTexture;
+                modelLst.push_back(new cCube({ savedx, savedy, savedz }, saveds, (ModelTexture)savedTexture));
+            }
+            std::cerr << "Successfully loaded " << savecnt << " Cubes" << std::endl;
+            savefile.close();
+        }
+    }
+    else if (savefilenum == 2)
+    {
+        for(int i=0; i<100; i++) 
+        {
+            for(int j=0; j<100; j++) 
+            {
+                    modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, GRASS));
+            }
+        }
+    }
+}
 void saveData()
 {
     //save Blocks
@@ -2985,12 +3041,12 @@ void updateCreature(float dt)//the motion of entities in dt time
                 if (ent->velocity.y <= 0)
                 {
                     cModel* entCollideATBlockhere = nullptr;
-                    /*if (get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
+                    if (isParticle && get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
                     {
-                        createParticles_planeBounce(ent->box.center - ent->box.size - make_float3(0.2f,0.f,0.2f), -0.4 * ent->velocity.y, 4.f, 2, 10, 0.01f, entCollideATBlockhere->texture_id);
-                    }*/
+                        createParticles_planeBounce(ent->box.center - ent->box.size - make_float3(0.2f,0.f,0.2f), -0.6 * ent->velocity.y, 4.f, 2.f, 10, 0.01f, entCollideATBlockhere->texture_id);
+                    }
                     ent->isOnGround = true;
-                }
+                }  
                 ent->dy(-ent->velocity.y * dt);
                 ent->velocity.y = 0;
             }
@@ -3029,7 +3085,7 @@ void updateControl(float dt)//from keyboard to *contol
             if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
             direction = normalize(direction);
 
-            model_need_update = true;
+            //model_need_update = true;
         }   
     }
     else {
@@ -3045,7 +3101,7 @@ void updateControl(float dt)//from keyboard to *contol
             if (key_value['c']) direction -= normalize(make_float3(0, 1, 0));
             direction = normalize(direction);
             
-            model_need_update = true;
+            //model_need_update = true;
         }
     }
     
@@ -3248,7 +3304,7 @@ int main( int argc, char* argv[] )
     state.params.height = 768;
     sutil::CUDAOutputBufferType output_buffer_type = sutil::CUDAOutputBufferType::GL_INTEROP;
     sky.init();
-    sky.setSunTheta( DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
+    sky.setSunTheta(DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
     sky.setSunPhi(DEFAULT_SUN_PHI);
     sky.setTurbidity(2.2f);
     //Split out sun for direct sampling
@@ -3318,7 +3374,7 @@ int main( int argc, char* argv[] )
         //
         // Add basic models
         //
-        initData();
+        readData();
         modelLst.push_back(new cLightSphere({ 8.0f, 6.0f, -0.4f }, {0.5f, 1.0f, 1.0f}, 0.5f));
         initEntitySystem();
 
