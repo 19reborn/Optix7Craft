@@ -922,6 +922,11 @@ bool get_model_at(float3 pos, cModel*& pmodel) {
     return false;
 }
 
+void set_bound_zero(float result[6]) {
+    auto* aabb = reinterpret_cast<OptixAabb*>(result);
+    *aabb = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
+}
+
 //------------------------------------------------------------------------------
 //
 //  Texture loading Functions
@@ -1627,6 +1632,9 @@ void createTextures()
     }
 }
 
+inline float calc_xz_distance(float3 delta) {
+    return sqrt(delta.x * delta.x + delta.z + delta.z);
+}
 
 void createGeometry( WhittedState &state ) {
     //
@@ -1638,10 +1646,17 @@ void createGeometry( WhittedState &state ) {
     OptixAabb*  aabb = new OptixAabb[sumCOUNT];
     CUdeviceptr d_aabb;
 
+    constexpr const float RENDER_DISTANT = 20;
+
     for(size_t i=0; i<cModel::OBJ_COUNT; i++) {
-        modelLst[i]->set_bound(reinterpret_cast<float*>(&aabb[i]));
+        if(calc_xz_distance(control->pos - modelLst[i]->get_center()) > RENDER_DISTANT) {
+            set_bound_zero(reinterpret_cast<float*>(&aabb[i]));
+        } else {
+            modelLst[i]->set_bound(reinterpret_cast<float*>(&aabb[i]));
+        }
     }
     for (size_t i = 0; i < Particle::OBJ_COUNT; i++) {
+        // ptc必然在自身附近……吧
         ptcList[i]->set_bound(reinterpret_cast<float*>(&aabb[i+cModel::OBJ_COUNT]));
     }
 
@@ -3013,6 +3028,8 @@ void updateControl(float dt)//from keyboard to *contol
             if (key_value['a']) direction += normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
             if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
             direction = normalize(direction);
+
+            model_need_update = true;
         }   
     }
     else {
@@ -3027,6 +3044,8 @@ void updateControl(float dt)//from keyboard to *contol
             if (key_value['_']) direction += normalize(make_float3(0, 1, 0));
             if (key_value['c']) direction -= normalize(make_float3(0, 1, 0));
             direction = normalize(direction);
+            
+            model_need_update = true;
         }
     }
     
