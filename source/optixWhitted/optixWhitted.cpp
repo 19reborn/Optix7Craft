@@ -94,7 +94,7 @@ bool              resize_dirty  = false;
 bool              minimized     = false;
 float lastframe = 0.f;
 float deltatime = 0.f;
-float circle = 20.0f;
+float circle = 60.0f;
 float game_time;
 
 
