@@ -546,15 +546,27 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
             hgr[idx].data.diffuse_map_x_down = texture_list[textures[ "GRASS_side_diffuse"]]->textureObject;
             hgr[idx].data.diffuse_map_z_up = texture_list[textures[ "GRASS_side_diffuse" ]]->textureObject;
             hgr[idx].data.diffuse_map_z_down = texture_list[textures[ "GRASS_side_diffuse" ]]->textureObject;
+        } else if(texture_id == BARK) { // 只有up和down不一样
+            hgr[idx].data.diffuse_map_y_up = texture_list[textures[ "BARK_top_diffuse" ]]->textureObject;
+            hgr[idx].data.diffuse_map_y_down = texture_list[textures[ "BARK_top_diffuse" ]]->textureObject;
         }
 
-        if(texture_id == IRON || texture_id == GRASS) {
+        if(texture_id == IRON 
+        || texture_id == GRASS 
+        || texture_id == BARK) {
             hgr[idx].data.has_normal = false;
         } else {
             hgr[idx].data.has_normal = true;
         }
         hgr[idx].data.normal_map = texture_list[textures[ get_texture_name(texture_id) + "_normal" ]]->textureObject;
-        hgr[idx].data.has_roughness = true;
+        
+        if(texture_id == BARK
+        || texture_id == GRASS) {
+            hgr[idx].data.has_roughness = false;
+        } else {
+            hgr[idx].data.has_roughness = true;
+        }
+
         hgr[idx].data.roughness_map = texture_list[textures[ get_texture_name(texture_id) + "_roughness" ]]->textureObject;
     }
     
@@ -2859,6 +2871,7 @@ int main( int argc, char* argv[] )
     load_texture("Ground786.jpg", "GRASS_side_diffuse");
     load_texture_integrated("Metal003", IRON);
     load_texture_integrated("bark1", BARK);
+    load_texture("stripped_oak_log_top.png", "BARK_top_diffuse");
     load_texture_integrated("Grass001", LEAF);
     //
     // Parse command line options
