@@ -77,6 +77,17 @@ using std::unordered_map;
 
 //--------------------------------------------------------------------------- ---
 //
+// Settings
+//
+//------------------------------------------------------------------------------
+
+//Particles settings
+constexpr const bool              isParticle = true;
+//Sun height
+bool              renewShadowOnTime = false;
+
+//--------------------------------------------------------------------------- ---
+//
 // Globals
 //
 //------------------------------------------------------------------------------
@@ -112,12 +123,6 @@ const int         max_trace = 10;
 // Model state
 bool              model_need_update = false;
 
-
-//Particles settings
-bool              isParticle = true;
-
-//Sun height
-bool              renewShadowOnTime = false;
 //------------------------------------------------------------------------------
 //
 // Local types
@@ -320,6 +325,14 @@ float3 nearCeil(float3& a,float3& vec)
 float sunAngleScaling(float f)
 {
     return (float)fmod(f, 2 * M_PI);
+}
+int generateIntScaling(int numberGen)
+{
+    if (numberGen == 0)
+    {
+        return 1;
+    }
+    return 0;
 }
 //------------------------------------------------------------------------------
 //
@@ -546,15 +559,27 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
             hgr[idx].data.diffuse_map_x_down = texture_list[textures[ "GRASS_side_diffuse"]]->textureObject;
             hgr[idx].data.diffuse_map_z_up = texture_list[textures[ "GRASS_side_diffuse" ]]->textureObject;
             hgr[idx].data.diffuse_map_z_down = texture_list[textures[ "GRASS_side_diffuse" ]]->textureObject;
+        } else if(texture_id == BARK) { // 只有up和down不一样
+            hgr[idx].data.diffuse_map_y_up = texture_list[textures[ "BARK_top_diffuse" ]]->textureObject;
+            hgr[idx].data.diffuse_map_y_down = texture_list[textures[ "BARK_top_diffuse" ]]->textureObject;
         }
 
-        if(texture_id == IRON || texture_id == GRASS) {
+        if(texture_id == IRON 
+        || texture_id == GRASS 
+        || texture_id == BARK) {
             hgr[idx].data.has_normal = false;
         } else {
             hgr[idx].data.has_normal = true;
         }
         hgr[idx].data.normal_map = texture_list[textures[ get_texture_name(texture_id) + "_normal" ]]->textureObject;
-        hgr[idx].data.has_roughness = true;
+        
+        if(texture_id == BARK
+        || texture_id == GRASS) {
+            hgr[idx].data.has_roughness = false;
+        } else {
+            hgr[idx].data.has_roughness = true;
+        }
+
         hgr[idx].data.roughness_map = texture_list[textures[ get_texture_name(texture_id) + "_roughness" ]]->textureObject;
     }
     
@@ -897,7 +922,7 @@ bool get_model_at(float3 pos, cModel*& pmodel) {
 void load_texture(std::string file_name, const std::string & name) {
     std::string relaPath = "Textures/" + file_name;
     std::string textureFilename(sutil::sampleDataFilePath(relaPath.c_str()));
-    // std::cerr << "[INFO] path: " << textureFilename << std::endl;
+    std::cerr << "[INFO] path: " << textureFilename << std::endl;
     int2 res;
     int   comp;
     unsigned char* image = stbi_load(textureFilename.c_str(),
@@ -2423,9 +2448,18 @@ bool isCollide(Creature*& ent)
 //
 // Camera
 //
+
+bool axisLegal(int x, int y)
+{
+    if (x < -50 || x>50 || y < -50 || y>50)
+    {
+        return false;
+    }
+    return true;
+}
 void initData()
 {
-    std::ifstream savefile(sutil::sampleDataFilePath("Saves/SAVE0.txt"), std::ios::in);
+    /*std::ifstream savefile(sutil::sampleDataFilePath("Saves/SAVE0.txt"), std::ios::in);
     if (!savefile) std::cout << "failed to load savefiles" << std::endl;
     else {
         int savecnt = 0;
@@ -2439,7 +2473,129 @@ void initData()
         }
         std::cerr << "Successfully loaded " << savecnt << " Cubes" << std::endl;
         savefile.close();
+    }*/
+
+    //Part1:生成0-1表
+    srand(jiangzemin);
+    int worldIntList[110][110] = { 0 };
+    int worldHeightList[110][110] = { 0 };
+    const int deltaX[10] = { 0,1,1,1,0,0,0,-1,-1,-1 };
+    const int deltaY[10] = { 0,-1,0,1,-1,0,1,-1,0,1 };
+    for (register int i = -50; i <= 50; i++)
+    {
+        for (register int j = -50; j <= 50; j++)
+        {
+            worldIntList[i+50][j+50] = generateIntScaling(rand() % 4);
+        }
     }
+    //平整化
+    for (register int epoch = 1; epoch <= 1; epoch++)
+    {
+        for (register int i = -49; i <= 49; i++)
+        {
+            for (register int j = -49; j <= 49; j++)
+            {
+                int cnt = 0;
+                for (register int k = 1; k <= 9; k++)
+                {
+                    int tx = i + deltaX[k];
+                    int ty = j + deltaY[k];
+                    if (worldIntList[tx + 50][ty + 50])
+                    {
+                        cnt++;
+                    }
+                }
+                if (cnt > 3)
+                {
+                    worldIntList[i + 50][j + 50] = 1;
+                }
+                else {
+                    worldIntList[i + 50][j + 50] = 0;
+                }
+            }
+        }
+    }
+    
+
+    for (register int i = -50; i <= 50; i++)
+    {
+        for (register int j = -50; j <= 50; j++)
+        {
+            int Worlddepth = 0;
+            for (Worlddepth = 0; Worlddepth <= 20; Worlddepth++)
+            {
+                bool isBreak = false;
+                for (register int k = i - Worlddepth; k <= i + Worlddepth; k++)
+                {
+                    if (axisLegal(k,j+Worlddepth) && worldIntList[k+50][j + Worlddepth+50] == 0)
+                    {
+                        isBreak = true;
+                        break;
+                    }
+                }
+                if (isBreak) break;
+
+                for (register int k = i - Worlddepth; k <= i + Worlddepth; k++)
+                {
+                    if (axisLegal(k, j - Worlddepth) && worldIntList[k + 50][j - Worlddepth + 50] == 0)
+                    {
+                        isBreak = true;
+                        break;
+                    }
+                }
+                if (isBreak) break;
+
+                for (register int k = j - Worlddepth; k <= j + Worlddepth; k++)
+                {
+                    if (axisLegal(i + Worlddepth,k) && worldIntList[i + Worlddepth + 50][k + 50] == 0)
+                    {
+                        isBreak = true;
+                        break;
+                    }
+                }
+                if (isBreak) break;
+
+                for (register int k = j - Worlddepth; k <= j + Worlddepth; k++)
+                {
+                    if (axisLegal(i - Worlddepth, k) && worldIntList[i - Worlddepth + 50][k + 50] == 0)
+                    {
+                        isBreak = true;
+                        break;
+                    }
+                }
+                if (isBreak) break;
+            }
+            worldHeightList[i + 50][j + 50] = Worlddepth;
+        }
+    }
+
+
+    /*for (register int i = -50; i <= 50; i++)
+    {
+        for (register int j = -50; j <= 50; j++)
+        {
+            std::cout << worldHeightList[i + 50][j + 50] << " ";
+        }
+        std::cout << std::endl;
+    }
+    system("pause");*/
+
+    for (register int i = -50; i <= 50; i++)
+    {
+        for (register int j = -50; j <= 50; j++)
+        {
+
+        
+            
+            for (register int k = 0; k <= worldHeightList[i + 50][j + 50] - 1; k++)
+            {
+                modelLst.push_back(new cCube({ i + 0.5f, k+ 1.f + 0.5f, j + 0.5f }, 0.5f, DIRT));
+            }
+           modelLst.push_back(new cCube({ i + 0.5f,  worldHeightList[i + 50][j + 50] + 1.f + 0.5f, j + 0.5f }, 0.5f, GRASS));
+        }
+    }
+    
+
 }
 void saveData()
 {
@@ -2468,11 +2624,11 @@ void initCreature()
     Creature* enttmp = new Creature;
     crtList.push_back(enttmp);
     control = player = (Creature*)crtList[0];
-    player->pos = make_float3(8.0f, 0.7f, -4.0f);
-    player->eye = make_float3(8.0f, 2.0f, -4.0f);
+    player->pos = make_float3(8.0f, 19.7f, -4.0f);
+    player->eye = make_float3(8.0f, 21.0f, -4.0f);
     player->lookat = make_float3(4.0f, 2.3f, -4.0f);
     player->up = make_float3(0.0f, 1.0f, 0.0f);
-    player->box = CollideBox(make_float3(8.0f, 1.55f, -4.0f), make_float3(0.3f, 0.85f, 0.3f));
+    player->box = CollideBox(make_float3(8.0f, 20.55f, -4.0f), make_float3(0.3f, 0.85f, 0.3f));
 }
 void initEntitySystem()
 {
@@ -2483,7 +2639,7 @@ void initEntitySystem()
 }
 void initCameraState()
 {
-    camera.setEye( make_float3( 8.0f, 2.0f, -4.0f ) );
+    camera.setEye( make_float3( 8.0f, 21.0f, -4.0f ) );
     camera.setLookat( make_float3( 4.0f, 2.3f, -4.0f ) );
     camera.setUp( make_float3( 0.0f, 1.0f, 0.0f ) );
     camera.setFovY( 60.0f );
@@ -2861,7 +3017,8 @@ int main( int argc, char* argv[] )
     load_texture("Ground786.jpg", "GRASS_side_diffuse");
     load_texture_integrated("Metal003", IRON);
     load_texture_integrated("bark1", BARK);
-    load_texture_integrated("Grass001", LEAF);
+    load_texture("stripped_oak_log_top.png", "BARK_top_diffuse");
+    load_texture_integrated("Leaves002", LEAF);
     //
     // Parse command line options
     //
@@ -2913,11 +3070,11 @@ int main( int argc, char* argv[] )
         modelLst.push_back(new cCube({2.5f, 2.5f, 5.5f}, 0.5f, WOOD));
         modelLst.push_back(new cCube({2.5f, 3.5f, 7.5f}, 0.5f, WOOD));*/
         initData();
-        modelLst.push_back(new cRect(
+        /*modelLst.push_back(new cRect(
             make_float3( 32.0f, 0.0f, 0.0f ),
             make_float3( 0.0f, 0.0f, 16.0f ),
             make_float3( -16.0f, 0.01f, -8.0f )
-        ));
+        ));*/
 
         initEntitySystem();
 
@@ -2977,7 +3134,7 @@ int main( int argc, char* argv[] )
 
 
                     //----------------------------sun updating----------------------------
-                    float sunAngle = sunAngleScaling(0.f + glfwGetTime() / 240 * (0.5f * M_PI - 0.f));
+                    float sunAngle = sunAngleScaling(1.1f + glfwGetTime() / 2400 * (0.5f * M_PI - 0.f));
                     //std::cout << sunAngle << std::endl;
                     sky.setSunTheta(sunAngle);
                     sun.direction = sky.getSunDir();
