@@ -35,6 +35,36 @@
 extern "C" {
 __constant__ Params params;
 }
+// Convert Cartesian coordinates to polar coordinates
+__forceinline__ __device__ float3 cartesian_to_polar(const float3& v)
+{
+    float azimuth;
+    float elevation;
+    float radius = length(v);
+
+    float r = sqrtf(v.x * v.x + v.y * v.y);
+    if (r > 0.0f)
+    {
+        azimuth = atanf(v.y / v.x);
+        elevation = atanf(v.z / r);
+
+        if (v.x < 0.0f)
+            azimuth += M_PIf;
+        else if (v.y < 0.0f)
+            azimuth += M_PIf * 2.0f;
+    }
+    else
+    {
+        azimuth = 0.0f;
+
+        if (v.z > 0.0f)
+            elevation = +M_PI_2f;
+        else
+            elevation = -M_PI_2f;
+    }
+
+    return make_float3(azimuth, elevation, radius);
+}
 
 __inline__ __device__ float3 tonemap(const float3 in)
 {
@@ -92,13 +122,65 @@ static __device__ __inline__ float3 querySkyModel( bool CEL, const float3& direc
 
 extern "C" __global__ void __miss__bg()
 {
+    
     const MissData* sbt_data = (MissData*)optixGetSbtDataPointer();
     SunPRD *prd = getPRD<SunPRD>();
     const bool show_sun = (prd->depth == 0);
-    const float3 ray_dir = optixGetWorldRayDirection();;
-    prd->radiance = ray_dir.y <= 0.0f ? make_float3(0.0f) : tonemap(querySkyModel( show_sun, ray_dir));
+    const float3 ray_dir = optixGetWorldRayDirection();
+    const float3 ray_orig = optixGetWorldRayOrigin();
+    const float3 ray_hit = ray_orig + ray_dir;
+    const float3 orig = make_float3(ray_orig.x, ray_orig.y - 0.6f, ray_orig.z);
     //prd->radiance = tonemap(querySkyModel( show_sun, ray_dir));
     //prd->color = tonemap(prd->radiance * prd->attenuation);
+    //float3 polar = cartesian_to_polar(ray_dir);
+    float radius = 1.0f;
+    //float3 texcoord = make_float3(polar.x * 0.5f * M_1_PIf, (polar.y + M_PI_2f) * M_1_PIf, polar.z / radius);
+    
+
+    float3 texcoord = normalize(ray_hit-orig)/2;
+    float circle = params.circle;
+    float game_time = fmod(params.game_time,circle);
+    if (game_time >= circle / 4 && game_time <= 3 * circle / 4) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->night_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        prd->radiance = skybox * params.ambient_light_color * 2.0f;
+    }
+    else if (game_time > 3 * circle / 4) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->morning_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        prd->radiance = skybox * params.ambient_light_color * 3.0f;
+    }
+    else {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->noon_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        prd->radiance = skybox * params.ambient_light_color * 0.2f + tonemap(querySkyModel(show_sun, ray_dir));
+    }
+    /*
+    else if (game_time <= circle / 5 && game_time >= circle/10) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->day_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        prd->radiance = skybox * params.ambient_light_color * 0.2f + tonemap(querySkyModel(show_sun, ray_dir));
+    }
+    else if (game_time > circle * 3 / 4 && game_time < circle * 4 / 5) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->day_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color1 = skybox * params.ambient_light_color * 2.5f;
+        skybox = make_float3(tex2D<float4>(sbt_data->night_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color2 = skybox * params.ambient_light_color * 2.0f;
+        prd->radiance = lerp(color2, color1, (game_time - circle*3 /4 ) / (0.05 * circle));
+    }
+    else if (game_time > circle / 5 && game_time < circle / 4) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->day_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color1 = skybox * params.ambient_light_color * 0.2f + tonemap(querySkyModel(show_sun, ray_dir));
+        skybox = make_float3(tex2D<float4>(sbt_data->night_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color2 = skybox * params.ambient_light_color * 2.0f;
+        prd->radiance = lerp(color1, color2, (game_time - circle / 5) / (0.05 * circle));
+    }
+    else {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->day_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        prd->radiance = skybox * params.ambient_light_color * 2.5f;
+    }
+    */
+   //float3 skybox = make_float3(tex2D<float4>(sbt_data->env_map, texcoord.x+0.5f,texcoord.z+0.5f));
+        //* ambient_light_color * 2.0f;
+    //prd->radiance = skybox * params.ambient_light_color * 0.2f + tonemap(querySkyModel(show_sun, ray_dir));
+    //prd->radiance = skybox * params.ambient_light_color * 2.0f;
+    //prd->radiance = ray_dir.y <= -0.2f ? skybox : tonemap(querySkyModel( show_sun, ray_dir));
     prd->done = true;
     unsigned int u0, u1;
     packPointer(&prd, u0, u1);

@@ -94,6 +94,9 @@ bool              resize_dirty  = false;
 bool              minimized     = false;
 float lastframe = 0.f;
 float deltatime = 0.f;
+float circle = 10.0f;
+float game_time;
+
 
 //Keyboard mapping
 unordered_map<char, bool>   key_value;
@@ -1481,7 +1484,7 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 5u;
+    state.params.samples_per_launch = 1u;
     state.params.num_lights_sample = 1u;
     state.params.point_light_sum = static_cast<uint32_t>(g_light.size());
     CUDA_CHECK(cudaMalloc(
@@ -1496,6 +1499,8 @@ void initLaunchParams( WhittedState& state )
     ));
     state.params.sun = sun;
     state.params.sky = sky;
+    state.params.circle = circle;
+    state.params.game_time = game_time;
     state.params.ambient_light_color = make_float3( 0.1f, 0.1f, 0.1f );
     state.params.max_depth = max_trace;
     state.params.scene_epsilon = 1.e-4f;
@@ -2365,8 +2370,10 @@ void createSBT( WhittedState &state)
             MissRecord ms_sbt[RAY_TYPE_COUNT];
             optixSbtRecordPackHeader( state.radiance_miss_prog_group, &ms_sbt[0] );
             optixSbtRecordPackHeader( state.occlusion_miss_prog_group, &ms_sbt[1] );
-            ms_sbt[1].data = ms_sbt[0].data = { 0.34f, 0.55f, 0.85f };
-
+            ms_sbt[1].data.bg_color = ms_sbt[0].data.bg_color = { 0.34f, 0.55f, 0.85f };
+            ms_sbt[1].data.morning_map = ms_sbt[0].data.morning_map = texture_list[textures["MORNING_MAP"]]->textureObject;
+            ms_sbt[1].data.noon_map = ms_sbt[0].data.noon_map = texture_list[textures["NOON_MAP"]]->textureObject;
+            ms_sbt[1].data.night_map = ms_sbt[0].data.night_map = texture_list[textures["NIGHT_MAP"]]->textureObject;
             CUDA_CHECK( cudaMemcpy(
                     reinterpret_cast<void*>( d_miss_record ),
                     ms_sbt,
@@ -3248,7 +3255,7 @@ int main( int argc, char* argv[] )
     state.params.height = 768;
     sutil::CUDAOutputBufferType output_buffer_type = sutil::CUDAOutputBufferType::GL_INTEROP;
     sky.init();
-    sky.setSunTheta( DEFAULT_SUN_THETA);  // 0: noon, pi/2: sunset
+    sky.setSunTheta(0);  // 0: noon, pi/2: sunset
     sky.setSunPhi(DEFAULT_SUN_PHI);
     sky.setTurbidity(2.2f);
     //Split out sun for direct sampling
@@ -3276,6 +3283,9 @@ int main( int argc, char* argv[] )
     load_texture_integrated("bark1", BARK);
     load_texture("stripped_oak_log_top.png", "BARK_top_diffuse");
     load_texture_integrated("Leaves002", LEAF);
+    load_texture("clear_sky.jpg", "NOON_MAP");
+    load_texture("sky1.jpg", "MORNING_MAP");
+    load_texture("night.jpg", "NIGHT_MAP");
     //
     // Parse command line options
     //
@@ -3378,7 +3388,8 @@ int main( int argc, char* argv[] )
 
 
                     //----------------------------sun updating----------------------------
-                    float sunAngle = sunAngleScaling(1.1f + glfwGetTime() / 2400 * (0.5f * M_PI - 0.f));
+                    game_time = circle / 4.f + glfwGetTime() ;
+                    float sunAngle = sunAngleScaling((game_time - circle / 4.f) / (circle / 4.f) * ( M_PI / 2.f) );
                     //std::cout << sunAngle << std::endl;
                     sky.setSunTheta(sunAngle);
                     sun.direction = sky.getSunDir();
