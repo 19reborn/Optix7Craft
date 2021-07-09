@@ -140,13 +140,13 @@ extern "C" __global__ void __miss__bg()
     float3 texcoord = normalize(ray_hit-orig)/2;
     float circle = params.circle;
     float game_time = fmod(params.game_time,circle);
-    if (game_time >= circle / 4 && game_time <= 3 * circle / 4) {
+    if (game_time >= circle /2.02) {
         float3 skybox = make_float3(tex2D<float4>(sbt_data->night_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
         prd->radiance = skybox * params.ambient_light_color * 2.0f;
     }
-    else if (game_time > 3 * circle / 4) {
+    else if (game_time <=  circle / 4) {
         float3 skybox = make_float3(tex2D<float4>(sbt_data->morning_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
-        prd->radiance = skybox * params.ambient_light_color * 3.0f;
+        prd->radiance = skybox;
     }
     else {
         float3 skybox = make_float3(tex2D<float4>(sbt_data->noon_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
