@@ -80,7 +80,7 @@ using std::unordered_map;
 //------------------------------------------------------------------------------
 
 //Particles settings
-constexpr const bool              isParticle = true;
+bool              isParticle = true;
 //Sun height
 bool              renewShadowOnTime = false;
 
@@ -123,6 +123,12 @@ const int         max_trace = 10;
 
 // Model state
 bool              model_need_update = false;
+
+enum BlockSize {
+    NORM,
+    THIN,
+    BS_SIZE
+} CurSize;
 
 //------------------------------------------------------------------------------
 //
@@ -352,6 +358,11 @@ enum ModelTexture { // 记得也填get_texture_name
     WATER,
     BARK,
     LEAF,
+    GRAVEL,
+    GOLD,
+    CHINA,
+    STEEL,
+    ROCK,
     MT_SIZE // 请确保这个出现在最后一个
 };
 ModelTexture curTexture = NONE;
@@ -368,6 +379,11 @@ string get_texture_name(ModelTexture tex_id) {
         case WATER: return "WATER";
         case BARK: return "BARK";
         case LEAF: return "LEAF";
+        case GRAVEL: return "GRAVEL";
+        case GOLD: return "GOLD";
+        case CHINA: return "CHINA";
+        case STEEL: return "STEEL";
+        case ROCK: return "ROCK";
         default: return "ERROR";
     }
 }
@@ -501,16 +517,16 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
     if (texture_id == NONE) {
         hgr[idx].data.shading.metal = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
-                { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
+                { 0.1f, 0.2f, 0.4f },   // Kd   // 和主体的颜色有关
                 { 0.9f, 0.9f, 0.9f },   // Ks
-                { 0.8f, 0.8f, 0.8f },   // Kr
+                { 0.9f, 0.9f, 0.9f },   // Kr
                 64,                     // phong_exp
         };
     } else if (texture_id == GLASS) {
         hgr[idx].data.shading.glass = {
                 1e-2f,                                  // importance_cutoff
                 { 0.034f, 0.055f, 0.085f },             // cutoff_color
-                3.0f,                                   // fresnel_exponent
+                3.0f,                                   // fresnel_exponent(增大反射小）
                 0.1f,                                   // fresnel_minimum
                 1.0f,                                   // fresnel_maximum
                 1.4f,                                   // refraction_index
@@ -525,14 +541,14 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
     else if (texture_id == WATER) {
         hgr[idx].data.shading.water = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
-                { 0.5f, 0.6f, 0.7f },   // Kd   // 和主体的颜色有关
+                { 0.03f, 0.4f, 0.5f },   // Kd   // 和主体的颜色有关
                 { 0.4f, 0.4f, 0.4f },   // Ks
-                { 0.05f, 0.05f, 0.05f },   // Kr
+                { 0.9f, 0.9f, 0.9f },   // Kr
                 64,                     // phong_exp
                 0.001f,                 // importance_cutoff
                 10,                     // refraction_maxdepth
                 1.33f,                    // refractivity_n 折射率
-                0.06                    // transparency 透明度
+                0.4                    // transparency 透明度
         };
     }
     else {
@@ -540,11 +556,11 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         hgr[idx].data.shading.metal = {
                 { 0.2f, 0.5f, 0.5f },   // Ka
                 { 0.7f, 0.7f, 0.7f },   // Kd   // 和主体的颜色有关
-                { 0.9f, 0.9f, 0.9f },   // Ks
-                { 0.01f, 0.01f, 0.01f },   // Kr 
-                64                      // phong_exp
+                { 0.2f, 0.2f, 0.2f },   // Ks
+                { 0.0f, 0.0f, 0.0f },   // Kr 
+                1                      // phong_exp
         };
-        if(texture_id == IRON) {
+        if(texture_id == IRON || texture_id == GOLD || texture_id == STEEL) {
             hgr[idx].data.shading.metal.Kr = {0.6f, 0.6f, 0.6f};
         }
         hgr[idx].data.has_diffuse = true;
@@ -570,7 +586,9 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
 
         if(texture_id == IRON 
         || texture_id == GRASS 
-        || texture_id == BARK) {
+        || texture_id == BARK
+        || texture_id == GOLD
+        || texture_id == STEEL) {
             hgr[idx].data.has_normal = false;
         } else {
             hgr[idx].data.has_normal = true;
@@ -675,7 +693,7 @@ public:
     SphereShell args;
 
     explicit cSphereShell(float3 c, float r1, float r2, ModelTexture tex_id=NONE): 
-        cModel(CollideBox(c, {r2, r2, r2}), tex_id) {
+        cModel(CollideBox(c, {0.5f, 0.5f, 0.5f}), tex_id) {
         args.center = c;
         args.radius1 = r1;
         args.radius2 = r2;
@@ -740,14 +758,14 @@ public:
     Cube args;
 
     explicit cCube(float3 c, float s, ModelTexture tex_id=NONE): 
-        cModel(CollideBox(c, {s, s, s}), tex_id) {
+        cModel(CollideBox(c, {ceil(2*s)/2.f, ceil(2*s)/2.f, ceil(2*s)/2.f}), tex_id) {
         args.center = c;
         args.size = {s, s, s};
         collidable = true;
     }
 
     explicit cCube(float3 c, float3 s, ModelTexture tex_id=NONE): 
-        cModel(CollideBox(c, s), tex_id) {
+        cModel(CollideBox(c, { ceil(s.x * 2) / 2, ceil(s.y * 2) / 2, ceil(s.z * 2) / 2 }), tex_id) {
         args.center = c;
         args.size = s;
         collidable = true;
@@ -895,13 +913,40 @@ public:
     void move_to(float3 pos) {}
 };
 
+ enum LightColor {
+     COLD = 0,
+     WARM,
+     WHITE,
+     LC_SIZE
+ };
+LightColor curLightColor = COLD;
+
 class cLightSphere: public cSphereShell {
 public:
-    explicit cLightSphere(float3 pos, float3 color, float radius, ModelTexture tex_id=NONE):
+    static int LIGHTID;
+    int lightnum;
+
+    explicit cLightSphere(float3 pos, LightColor lc, float radius, ModelTexture tex_id=NONE):
     cSphereShell(pos, radius-.1f, radius, tex_id) {
-        g_light.push_back({pos, color});
+        BasicLight bl;
+        bl.pos = pos;
+        if (lc == COLD) {
+            bl.color = { 0.f, 0.5f, 1.f };
+        } else if (lc == WARM) {
+            bl.color = { 1.f, 0.5f, 0.f };
+        } else if (lc == WHITE) {
+            bl.color = { 1.f, 1.f, 1.f };
+        }
+        bl.id = ++LIGHTID;
+        g_light.push_back(bl);
+        lightnum = bl.id;
+    }
+
+    string get_type() {
+        return "LightSphere";
     }
 };
+int cLightSphere::LIGHTID = 0;
 
 vector<cModel*> modelLst;
 
@@ -1153,7 +1198,7 @@ void createParticles_Blockdestroy(float3& place, ModelTexture texture_id)
             place + make_float3(breakX, breakY, breakZ),
             make_float3(breakX * 10.f, breakY * 10.f, breakZ * 10.f),
             make_float3(randz, randz, randz),
-            0.5f,
+            0.25f,
             texture_id
         );
     }
@@ -1226,7 +1271,10 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
                 CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f,0.5f,0.5f));
                 if (!CollideBox::collide_check(control->box, tmpCLBOX))
                 {
-                    modelLst.push_back(new cCube(target, 0.5f, curTexture));
+                    float size = 0;
+                    if (CurSize == NORM) size = 0.5;
+                    else if (CurSize == THIN) size = 0.10;
+                    modelLst.push_back(new cCube(target, {size, 0.5, size}, curTexture));
                     model_need_update = true;
                 }
 
@@ -1237,13 +1285,21 @@ static void mouseButtonCallback( GLFWwindow* window, int button, int action, int
         {
             if (istargeted)
             {
-                //if(isParticle) createParticles_Blockdestroy(intersectBlock->get_center(), intersectBlock->texture_id);
+                if(isParticle) createParticles_Blockdestroy(intersectBlock->get_center(), intersectBlock->texture_id);
                 for (vector<cModel*>::iterator it = modelLst.begin(); it != modelLst.end(); ++it)
                 {
                     if (*it == intersectBlock)
                     {
+                        if ((*it)->get_type() == "LightSphere") {
+                            for (auto it2 = g_light.begin(); it2 != g_light.end(); ++it2) {
+                                if ((*it2).id == ((cLightSphere*)(*it))->lightnum) {
+                                    g_light.erase(it2);
+                                    break;
+                                }
+                            }
+                        }
                         delete *it; // 删除这个方块
-                        it = modelLst.erase(it);
+                        modelLst.erase(it);
                         break;  // 我们顶多只有一个这个方块
                     }
                 }
@@ -1384,7 +1440,51 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         }
         
         if (key == GLFW_KEY_T) {
-            createParticles_planeBounce(make_float3(3.f, 3.f, 3.f), 10.f, 0.f, 1.f, 4, 0.1f, NONE);
+            isParticle = !isParticle;
+            std::cout << "isParticle = " << isParticle << std::endl;
+        }
+        if (key == GLFW_KEY_G)
+        {
+            control->dX(make_float3(8.0f, 19.7f, -4.0f) - control->pos);
+        }
+
+        if (key == GLFW_KEY_B) {
+            CurSize = (BlockSize)((CurSize + 1) % BS_SIZE);
+        }
+
+        if (key == GLFW_KEY_K) {
+            curLightColor = (LightColor)( (curLightColor + 1) % LC_SIZE );
+        }
+
+        if (key == GLFW_KEY_L) {
+            if (istargeted)
+            {
+                float3 center = intersectBlock->get_collideBox().center;
+                float3 tmp = f3abs(intersectPoint - center);
+                float3 target;
+                if (tmp.x >= tmp.y && tmp.x >= tmp.z)
+                {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.x - center.x) * make_float3(1.f, 0.f, 0.f);
+                }
+                else if (tmp.y >= tmp.x && tmp.y >= tmp.z)
+                {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.y - center.y) * make_float3(0.f, 1.f, 0.f);
+                }
+                else {
+                    target = intersectBlock->get_collideBox().center + fsign(intersectPoint.z - center.z) * make_float3(0.f, 0.f, 1.f);
+                }
+
+
+                //这个方块会不会和人发生碰撞？
+                CollideBox tmpCLBOX = CollideBox(target, make_float3(0.5f, 0.5f, 0.5f));
+                if (!CollideBox::collide_check(control->box, tmpCLBOX))
+                {
+                    modelLst.push_back(new cLightSphere(target, curLightColor, 0.1f, curTexture));
+                    model_need_update = true;
+                }
+
+
+            }
         }
     }
     else if (action == GLFW_RELEASE)
@@ -1408,10 +1508,7 @@ static void keyCallback( GLFWwindow* window, int32_t key, int32_t /*scancode*/, 
         }
 
     }
-    else if( key == GLFW_KEY_G )
-    {
-        // toggle UI draw
-    }
+    
 }
 
 //------------------------------------------------------------------------------
@@ -1463,6 +1560,7 @@ void displayHUD(float width, float height) {
     sutil::beginFrameImGui();
 
     string sLeftDown = "CurBlock:\n" + get_texture_name(curTexture);
+    if (CurSize == THIN) sLeftDown += "_T";
     sutil::displayText( sLeftDown.c_str(),
                         0,
                         height - font_size_y / 2 );
@@ -1484,8 +1582,8 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 1u;
-    state.params.num_lights_sample = 1u;
+    state.params.samples_per_launch = 5u;
+    state.params.num_lights_sample = 5u;
     state.params.point_light_sum = static_cast<uint32_t>(g_light.size());
     CUDA_CHECK(cudaMalloc(
         reinterpret_cast<void**>(&state.params.point_light.data),
@@ -1613,7 +1711,7 @@ void createTextures()
             texture->pixel,
             pitch, pitch, height,
             cudaMemcpyHostToDevice));
-
+        
         res_desc.resType = cudaResourceTypeArray;
         res_desc.res.array.array = pixelArray;
 
@@ -1651,7 +1749,7 @@ void createGeometry( WhittedState &state ) {
     OptixAabb*  aabb = new OptixAabb[sumCOUNT];
     CUdeviceptr d_aabb;
 
-    constexpr const float RENDER_DISTANT = 20;
+    constexpr const float RENDER_DISTANT = 100000;
 
     for(size_t i=0; i<cModel::OBJ_COUNT; i++) {
         if(calc_xz_distance(control->pos - modelLst[i]->get_center()) > RENDER_DISTANT) {
@@ -2860,6 +2958,60 @@ void initData()
     
 
 }
+int readData()
+{
+    std::cout << "Select your saves:" << std::endl;
+    std::cout << "       0 : Auto generate" << std::endl;
+    std::cout << "       1 : Creator" << std::endl;
+    std::cout << "       2 : Test" << std::endl;
+    std::cout << "       3 : Presentor1" << std::endl;
+    int savefilenum = -1;
+    while (scanf_s("%d",&savefilenum) != 1)
+    {
+        std::cout << "input_error : please imput an int" << std::endl;
+    }
+    if (!(savefilenum >= 0 && savefilenum <= 3))
+    {
+        std::cout << "intput_error : number error" << std::endl;
+        return 1;
+    }
+    if (savefilenum == 0)
+    {
+        initData();
+    }
+    else if (savefilenum == 1)
+    {
+        std::ifstream savefile(sutil::sampleDataFilePath("Saves/SAVE0.txt"), std::ios::in);
+        if (!savefile)
+        {
+            std::cout << "failed to load savefiles" << std::endl;
+            return 1;
+        }
+        else {
+            int savecnt = 0;
+            float savedx, savedy, savedz, saveds;
+            int savedTexture;
+            while (!savefile.eof())
+            {
+                savecnt++;
+                savefile >> savedx >> savedy >> savedz >> saveds >> savedTexture;
+                modelLst.push_back(new cCube({ savedx, savedy, savedz }, saveds, (ModelTexture)savedTexture));
+            }
+            std::cerr << "Successfully loaded " << savecnt << " Cubes" << std::endl;
+            savefile.close();
+        }
+    }
+    else if (savefilenum == 2)
+    {
+        for(int i=0; i<100; i++) 
+        {
+            for(int j=0; j<100; j++) 
+            {
+                    modelLst.push_back(new cCube({1.f*i + 0.5f, 0.5f, 1.f*j + 0.5f}, 0.5f, GRASS));
+            }
+        }
+    }
+}
 void saveData()
 {
     //save Blocks
@@ -2992,12 +3144,12 @@ void updateCreature(float dt)//the motion of entities in dt time
                 if (ent->velocity.y <= 0)
                 {
                     cModel* entCollideATBlockhere = nullptr;
-                    /*if (get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
+                    if (isParticle && get_model_at(ent->box.center - make_float3(0.f, ent->box.size.y + 0.1f, 0.f), entCollideATBlockhere))
                     {
-                        createParticles_planeBounce(ent->box.center - ent->box.size - make_float3(0.2f,0.f,0.2f), -0.4 * ent->velocity.y, 4.f, 2, 10, 0.01f, entCollideATBlockhere->texture_id);
-                    }*/
+                        createParticles_planeBounce(ent->box.center - ent->box.size - make_float3(0.2f,0.f,0.2f), -0.6 * ent->velocity.y, 4.f, 2.f, 10, 0.01f, entCollideATBlockhere->texture_id);
+                    }
                     ent->isOnGround = true;
-                }
+                }  
                 ent->dy(-ent->velocity.y * dt);
                 ent->velocity.y = 0;
             }
@@ -3036,7 +3188,7 @@ void updateControl(float dt)//from keyboard to *contol
             if (key_value['d']) direction -= normalize(make_float3(camera_normal_vector.x, 0, camera_normal_vector.z));
             direction = normalize(direction);
 
-            model_need_update = true;
+            //model_need_update = true;
         }   
     }
     else {
@@ -3052,7 +3204,7 @@ void updateControl(float dt)//from keyboard to *contol
             if (key_value['c']) direction -= normalize(make_float3(0, 1, 0));
             direction = normalize(direction);
             
-            model_need_update = true;
+            //model_need_update = true;
         }
     }
     
@@ -3283,6 +3435,11 @@ int main( int argc, char* argv[] )
     load_texture_integrated("bark1", BARK);
     load_texture("stripped_oak_log_top.png", "BARK_top_diffuse");
     load_texture_integrated("Leaves002", LEAF);
+    load_texture_integrated("Gravel022", GRAVEL);
+    load_texture_integrated("Metal034", GOLD);
+    load_texture_integrated("Tiles101", CHINA);
+    load_texture_integrated("MetalPlates006", STEEL);
+    load_texture_integrated("Rock030", ROCK);
     load_texture("clear_sky.jpg", "NOON_MAP");
     load_texture("sky1.jpg", "MORNING_MAP");
     load_texture("night.jpg", "NIGHT_MAP");
@@ -3328,8 +3485,7 @@ int main( int argc, char* argv[] )
         //
         // Add basic models
         //
-        initData();
-        modelLst.push_back(new cLightSphere({ 8.0f, 6.0f, -0.4f }, {0.5f, 1.0f, 1.0f}, 0.5f));
+        readData();
         initEntitySystem();
 
         initCameraState();
