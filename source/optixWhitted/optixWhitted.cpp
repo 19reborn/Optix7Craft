@@ -1527,6 +1527,7 @@ void displayHUD(float width, float height) {
     sutil::beginFrameImGui();
 
     string sLeftDown = "CurBlock:\n" + get_texture_name(curTexture);
+    if (CurSize == THIN) sLeftDown += "_T";
     sutil::displayText( sLeftDown.c_str(),
                         0,
                         height - font_size_y / 2 );
