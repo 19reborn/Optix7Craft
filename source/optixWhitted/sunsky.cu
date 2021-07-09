@@ -144,9 +144,30 @@ extern "C" __global__ void __miss__bg()
         float3 skybox = make_float3(tex2D<float4>(sbt_data->night_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
         prd->radiance = skybox * params.ambient_light_color * 2.0f;
     }
-    else if (game_time <=  circle / 4) {
+    else if (game_time >= circle / 2.2) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->night_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color1 = skybox * params.ambient_light_color * 2.0f;
+        skybox = make_float3(tex2D<float4>(sbt_data->noon_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color2 = skybox * params.ambient_light_color * 0.2f + tonemap(querySkyModel(show_sun, texcoord));
+        prd->radiance = lerp(color2, color1, (game_time - circle / 2.2) / (circle / 2.02 - circle / 2.2));
+    }
+    else if (game_time <=  circle / 4 && game_time >= circle/20) {
         float3 skybox = make_float3(tex2D<float4>(sbt_data->morning_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
         prd->radiance = skybox;
+    }
+    else if (game_time < circle / 20) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->morning_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color1 = skybox;
+        skybox = make_float3(tex2D<float4>(sbt_data->night_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color2 = skybox * params.ambient_light_color * 2.0f;
+        prd->radiance = lerp(color2, color1, game_time / (circle / 20));
+    }
+    else if (game_time < circle / 3.5) {
+        float3 skybox = make_float3(tex2D<float4>(sbt_data->morning_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color1 = skybox;
+        skybox = make_float3(tex2D<float4>(sbt_data->noon_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
+        float3 color2 = skybox * params.ambient_light_color * 0.2f + tonemap(querySkyModel(show_sun, texcoord));
+        prd->radiance = lerp(color1, color2, (game_time-circle/4) / (circle /3.5 - circle/4 ));
     }
     else {
         float3 skybox = make_float3(tex2D<float4>(sbt_data->noon_map, texcoord.x + 0.5f, texcoord.z + 0.5f));
