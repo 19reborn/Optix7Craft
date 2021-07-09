@@ -2430,12 +2430,74 @@ bool detectModelUpdate(WhittedState& state) {
 bool isCollide_creature_cModel(Creature*& ent)
 {
     CollideBox entbox = ent->get_collideBox();
-    for (auto& md : modelLst)
+    cModel* possibleCollider = nullptr;
+    for (register float cllx = entbox.center.x - entbox.size.x; cllx <= entbox.center.x + entbox.size.x; cllx += 1.0f)
     {
-        if (CollideBox::collide_check(entbox, md->get_collideBox()) && md->collidable)
+        for (register float clly = entbox.center.y - entbox.size.y; clly <= entbox.center.y + entbox.size.y; clly += 1.0f)
+        {
+            for (register float cllz = entbox.center.z - entbox.size.z; cllz <= entbox.center.z + entbox.size.z; cllz += 1.0f)
+            {
+                if (get_model_at(make_float3(cllx, clly, cllz), possibleCollider) && possibleCollider->collidable)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    for (register float clly = entbox.center.y - entbox.size.y; clly <= entbox.center.y + entbox.size.y; clly += 1.0f)
+    {
+        for (register float cllz = entbox.center.z - entbox.size.z; cllz <= entbox.center.z + entbox.size.z; cllz += 1.0f)
+        {
+            if (get_model_at(make_float3(entbox.center.x + entbox.size.x, clly, cllz), possibleCollider) && possibleCollider->collidable)
+            {
+                return true;
+            }
+        }
+    }
+    for (register float cllx = entbox.center.x - entbox.size.x; cllx <= entbox.center.x + entbox.size.x; cllx += 1.0f)
+    {
+        for (register float cllz = entbox.center.z - entbox.size.z; cllz <= entbox.center.z + entbox.size.z; cllz += 1.0f)
+        {
+            if (get_model_at(make_float3(cllx, entbox.center.y + entbox.size.y, cllz), possibleCollider) && possibleCollider->collidable)
+            {
+                return true;
+            }
+        }
+    }
+    for (register float cllx = entbox.center.x - entbox.size.x; cllx <= entbox.center.x + entbox.size.x; cllx += 1.0f)
+    {
+        for (register float clly = entbox.center.y - entbox.size.y; clly <= entbox.center.y + entbox.size.y; clly += 1.0f)
+        {
+            if (get_model_at(make_float3(cllx, clly, entbox.center.z + entbox.size.z), possibleCollider) && possibleCollider->collidable)
+            {
+                return true;
+            }
+        }
+    }
+    for (register float clly = entbox.center.y - entbox.size.y; clly <= entbox.center.y + entbox.size.y; clly += 1.0f)
+    {
+        if (get_model_at(make_float3(entbox.center.x + entbox.size.x, clly, entbox.center.z + entbox.size.z), possibleCollider) && possibleCollider->collidable)
         {
             return true;
         }
+    }
+    for (register float cllz = entbox.center.z - entbox.size.z; cllz <= entbox.center.z + entbox.size.z; cllz += 1.0f)
+    {
+        if (get_model_at(make_float3(entbox.center.x + entbox.size.x, entbox.center.y + entbox.size.y, cllz), possibleCollider) && possibleCollider->collidable)
+        {
+            return true;
+        }
+    }
+    for (register float cllx = entbox.center.x - entbox.size.x; cllx <= entbox.center.x + entbox.size.x; cllx += 1.0f)
+    {
+        if (get_model_at(make_float3(cllx, entbox.center.y + entbox.size.y, entbox.center.z + entbox.size.z), possibleCollider) && possibleCollider->collidable)
+        {
+            return true;
+        }
+    }
+    if (get_model_at(make_float3(entbox.center.x + entbox.size.x, entbox.center.y + entbox.size.y, entbox.center.z + entbox.size.z), possibleCollider) && possibleCollider->collidable)
+    {
+        return true;
     }
     return false;
 }
@@ -2457,6 +2519,95 @@ bool axisLegal(int x, int y)
     }
     return true;
 }
+const int deltaX[10] = { 0,1,1,1,0,0,-1,-1,-1,0 };
+const int deltaY[10] = { 0,-1,0,1,-1,1,-1,0,1,0 };
+const int ddeltaX[20] = { 0,2,2,2,2,2,    1,1,0,0,-1,-1, -2,-2,-2,-2,-2 };
+const int ddeltaY[20] = { 0,2,1,0,-1,-2,  2,-2,2,-2,2,-2, 2,1,0,-1,-2 };
+void createBuildTree(float x, float y, float z, float height)
+{
+    cModel* tmpModelcheck = nullptr;
+    if (height == 2)
+    {
+        for (register int i = 0; i <= 4; i++)
+        {
+            if(!get_model_at(make_float3(x, y + i, z), tmpModelcheck)) modelLst.push_back(new cCube({ x, y+i, z }, 0.5f, BARK));
+        }
+        for (register float h = 0; h >= -2.1f; h -= 1.0f)
+        {
+            for (register int i = 1; i <= 8; i++)
+            {
+                float tx = x + deltaX[i];
+                float tz = z + deltaY[i];
+                if (!get_model_at(make_float3(tx, y + 4.f + h, tz), tmpModelcheck)) modelLst.push_back(new cCube({ tx , y + 4.f + h, tz }, 0.5f, LEAF));
+            }
+        }
+        for (register float h = 0; h >= -1.1f; h -= 1.0f)
+        {
+            for (register int i = 1; i <= 16; i++)
+            {
+                float tx = x + ddeltaX[i];
+                float tz = z + ddeltaY[i];
+                if (!get_model_at(make_float3(tx, y + 3.f + h, tz), tmpModelcheck)) modelLst.push_back(new cCube({ tx , y + 3.f + h, tz }, 0.5f, LEAF));
+            }
+        }
+    }
+    else if (height == 3)
+    {
+        for (register float i = 0.f; i <= 4.f; i+=1.f)
+        {
+            if (!get_model_at(make_float3(x, y + i, z), tmpModelcheck)) modelLst.push_back(new cCube({ x, y + i, z }, 0.5f, BARK));
+        }
+        for (register float h = 0; h >= -2.1f; h -= 1.0f)
+        {
+            for (register int i = 1; i <= 8; i++)
+            {
+                float tx = x + deltaX[i];
+                float tz = z + deltaY[i];
+                if (!get_model_at(make_float3(tx, y + 5.f + h, tz), tmpModelcheck)) modelLst.push_back(new cCube({ tx , y + 5.f + h, tz }, 0.5f, LEAF));
+            }
+        }
+        if (!get_model_at(make_float3(x, y + 5.f, z), tmpModelcheck)) modelLst.push_back(new cCube({ x , y + 5.f, z }, 0.5f, LEAF));
+        for (register float h = 0; h >= -1.1f; h -= 1.0f)
+        {
+            for (register int i = 1; i <= 16; i++)
+            {
+                float tx = x + ddeltaX[i];
+                float tz = z + ddeltaY[i];
+                if (!get_model_at(make_float3(tx, y + 4.f + h, tz), tmpModelcheck)) modelLst.push_back(new cCube({ tx , y + 4.f + h, tz }, 0.5f, LEAF));
+            }
+        }
+    }
+    else if (height == 4)
+    {
+        for (register float i = 0.f; i <= 5.f; i += 1.f)
+        {
+            if (!get_model_at(make_float3(x, y + i, z), tmpModelcheck)) modelLst.push_back(new cCube({ x, y + i, z }, 0.5f, BARK));
+        }
+        for (register float h = 0; h >= -3.1f; h -= 1.0f)
+        {
+            for (register int i = 1; i <= 8; i++)
+            {
+                float tx = x + deltaX[i];
+                float tz = z + deltaY[i];
+                if (!get_model_at(make_float3(tx, y + 6.f + h, tz), tmpModelcheck)) modelLst.push_back(new cCube({ tx , y + 6.f + h, tz }, 0.5f, LEAF));
+            }
+        }
+        if (!get_model_at(make_float3(x, y + 6.f, z), tmpModelcheck)) modelLst.push_back(new cCube({ x , y + 6.f, z }, 0.5f, LEAF));
+        if (!get_model_at(make_float3(x, y + 7.f, z), tmpModelcheck)) modelLst.push_back(new cCube({ x , y + 7.f, z }, 0.5f, LEAF));
+        for (register float h = 0; h >= -1.1f; h -= 1.0f)
+        {
+            for (register int i = 1; i <= 16; i++)
+            {
+                float tx = x + ddeltaX[i];
+                float tz = z + ddeltaY[i];
+                if (!get_model_at(make_float3(tx, y + 5.f + h, tz), tmpModelcheck))   modelLst.push_back(new cCube({ tx , y + 5.f + h, tz }, 0.5f, LEAF));
+            }
+        }
+    }
+}
+int worldIntList[110][110] = { 0 };
+int worldHeightList[110][110] = { 0 };
+bool isTree[110][110] = { 0 };
 void initData()
 {
     /*std::ifstream savefile(sutil::sampleDataFilePath("Saves/SAVE0.txt"), std::ios::in);
@@ -2476,11 +2627,9 @@ void initData()
     }*/
 
     //Part1:生成0-1表
+    int yeshouxianbei = 114514;
     srand(jiangzemin);
-    int worldIntList[110][110] = { 0 };
-    int worldHeightList[110][110] = { 0 };
-    const int deltaX[10] = { 0,1,1,1,0,0,0,-1,-1,-1 };
-    const int deltaY[10] = { 0,-1,0,1,-1,0,1,-1,0,1 };
+
     for (register int i = -50; i <= 50; i++)
     {
         for (register int j = -50; j <= 50; j++)
@@ -2489,7 +2638,7 @@ void initData()
         }
     }
     //平整化
-    for (register int epoch = 1; epoch <= 1; epoch++)
+    for (register int epoch = 1; epoch <= 3; epoch++)
     {
         for (register int i = -49; i <= 49; i++)
         {
@@ -2515,6 +2664,31 @@ void initData()
             }
         }
     }
+    //二次平整化
+    for (register int i = -49; i <= 49; i++)
+    {
+        for (register int j = -49; j <= 49; j++)
+        {
+            int cnt = 0;
+            for (register int k = 1; k <= 9; k++)
+            {
+                int tx = i + deltaX[k];
+                int ty = j + deltaY[k];
+                if (worldIntList[tx + 50][ty + 50])
+                {
+                    cnt++;
+                }
+            }
+            if (cnt > 4)
+            {
+                worldIntList[i + 50][j + 50] = 1;
+            }
+            else {
+                worldIntList[i + 50][j + 50] = 0;
+            }
+        }
+    }
+
     
 
     for (register int i = -50; i <= 50; i++)
@@ -2570,7 +2744,7 @@ void initData()
     }
 
 
-    /*for (register int i = -50; i <= 50; i++)
+    for (register int i = -50; i <= 50; i++)
     {
         for (register int j = -50; j <= 50; j++)
         {
@@ -2578,20 +2752,83 @@ void initData()
         }
         std::cout << std::endl;
     }
-    system("pause");*/
+    system("pause");
+    //地板铺完，开始放树
+    srand(yeshouxianbei);
+    for (register int i = -50; i <= 50; i++)
+    {
+        for (register int j = -50; j <= 50; j++)
+        {
+            worldIntList[i + 50][j + 50] = generateIntScaling(rand() % 4);
+        }
+    }
+    for (register int epoch = 1; epoch <= 3; epoch++)
+    {
+        for (register int i = -49; i <= 49; i++)
+        {
+            for (register int j = -49; j <= 49; j++)
+            {
+                int cnt = 0;
+                for (register int k = 1; k <= 9; k++)
+                {
+                    int tx = i + deltaX[k];
+                    int ty = j + deltaY[k];
+                    if (worldIntList[tx + 50][ty + 50])
+                    {
+                        cnt++;
+                    }
+                }
+                if (cnt > 3)
+                {
+                    worldIntList[i + 50][j + 50] = 1;
+                }
+                else {
+                    worldIntList[i + 50][j + 50] = 0;
+                }
+            }
+        }
+    }
+    for (register int i = -50; i <= 50; i++)
+    {
+        for (register int j = -50; j <= 50; j++)
+        {
+            for (register int k = 1; k <= 8; k++)
+            {
+                int tx = i + deltaX[k];
+                int ty = j + deltaY[k];
+                if (axisLegal(tx,ty) && worldIntList[tx + 50][ty + 50])
+                {
+                    worldIntList[i + 50][j + 50] = 0;
+                    break;
+                }
+            }
+        }
+    }
+    for (register int i = -49; i <= 49; i++)
+    {
+        for (register int j = -49; j <= 49; j++)
+        {
+            if (worldIntList[i + 50][j + 50]) isTree[i + 50][j + 50] = true;
+        }
+    }
+    system("pause");
+
 
     for (register int i = -50; i <= 50; i++)
     {
         for (register int j = -50; j <= 50; j++)
         {
-
-        
-            
+            modelLst.push_back(new cCube({ i + 0.5f,  0.5f, j + 0.5f }, 0.5f, DIRT));
             for (register int k = 0; k <= worldHeightList[i + 50][j + 50] - 1; k++)
             {
                 modelLst.push_back(new cCube({ i + 0.5f, k+ 1.f + 0.5f, j + 0.5f }, 0.5f, DIRT));
             }
-           modelLst.push_back(new cCube({ i + 0.5f,  worldHeightList[i + 50][j + 50] + 1.f + 0.5f, j + 0.5f }, 0.5f, GRASS));
+            modelLst.push_back(new cCube({ i + 0.5f,  worldHeightList[i + 50][j + 50] + 1.f + 0.5f, j + 0.5f }, 0.5f, GRASS));
+            if (isTree[i + 50][j + 50])
+            {
+                int height = 2 + rand() % 3;
+                createBuildTree(i + 0.5f, worldHeightList[i + 50][j + 50] + 2.f + 0.5f, j + 0.5f, height);
+            }
         }
     }
     
