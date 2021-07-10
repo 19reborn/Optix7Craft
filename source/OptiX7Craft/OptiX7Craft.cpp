@@ -1987,7 +1987,6 @@ static void createTextureSphereProgram( WhittedState &state, std::vector<OptixPr
             &radiance_sphere_prog_group ) );
 
     program_groups.push_back(radiance_sphere_prog_group);
-    state.radiance_metal_sphere_prog_group = radiance_sphere_prog_group;
     state.radiance_texture_sphere_prog_group = radiance_sphere_prog_group;
 
     OptixProgramGroup           occlusion_sphere_prog_group;
