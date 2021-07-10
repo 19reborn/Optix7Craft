@@ -1,5 +1,14 @@
 # Optix7Craft
 A **Minecraft** like game with **ray tracing** based on **NVIDIA Optix7.3**.
+
+## ScreenShots
+
+![](screenshots/1.png)
+
+![](screenshots/2.png)
+
+![](screenshots/3.png)
+
 ## Building under Windows
 
 - Install Required Packages
