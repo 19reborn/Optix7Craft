@@ -37,7 +37,6 @@ OPTIX_add_sample_executable( OptiX7Craft target_name
   camera.cu
   geometry.cu
   shading.cu
-  cube.cu
   sunsky.cu
   OPTIONS -rdc true
   )

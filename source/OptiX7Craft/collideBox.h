@@ -5,7 +5,6 @@
 #include <vector_types.h>
 #include <optix_types.h>
 #include <sutil/vec_math.h>
-#include <cuda/GeometryData.h>
 
 class CollideBox {
 public:

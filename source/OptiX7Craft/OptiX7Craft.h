@@ -26,7 +26,6 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include <cuda/GeometryData.h>
 
 #include <vector_types.h>
 
@@ -38,7 +37,7 @@
 #include <optix.h>
 
 #include "sunsky.hpp"
-
+#include <cuda/GeometryData.h>
 
 enum RayType
 {

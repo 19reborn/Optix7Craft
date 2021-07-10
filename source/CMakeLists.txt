@@ -79,7 +79,7 @@
 
 # This sets up the name of our project.  For our purposes the main thing this controls is
 # the name of the VS solution file.
-project(OptiX-Samples)
+project(Optix7Craft)
 
 # This enforces a particular version of CMake that we require to process the script files
 # properly.  We rely on CXX_STANDARD, which was added in CMake 3.1.
@@ -220,7 +220,6 @@ endif()
 # directory, and we can do this by setting these variables.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 # Create a flag for mac which will allow apps to add the local cuda toolkit
 # install path to the app's rpath.
@@ -269,7 +268,6 @@ set(SAMPLES_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
 set(SAMPLES_RELATIVE_INCLUDE_DIRS "\\
   \"cuda\", \\
   \"sutil\", \\
-  \"lib/DemandLoading/include\", \\
   \".\", ")
 
 # NVRTC absolute include paths to the headers used to build the samples
@@ -381,8 +379,6 @@ add_subdirectory( OptiX7Craft )
 
 # Our sutil library.  The rules to build it are found in the subdirectory.
 add_subdirectory(sutil)
-# Our other libraries.
-add_subdirectory( lib/DemandLoading )
 # Third-party support libraries.
 add_subdirectory(support)
 
