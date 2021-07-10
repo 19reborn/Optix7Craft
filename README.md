@@ -1,5 +1,5 @@
-# Ray-Tracing-Project
-Based on NVIDIA OptiX7.3 Frameworks.
+# Optix7Craft
+A **Minecraft** like game with **ray tracing** based on **NVIDIA Optix7.3**.
 ## Building under Windows
 
 - Install Required Packages
