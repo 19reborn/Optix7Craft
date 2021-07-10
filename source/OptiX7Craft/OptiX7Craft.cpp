@@ -607,11 +607,7 @@ void set_hitgroup_cube_general(WhittedState& state, HitGroupRecord* hgr, int idx
         hgr[idx].data.roughness_map = texture_list[textures[ get_texture_name(texture_id) + "_roughness" ]]->textureObject;
     }
     
-    if(texture_id == NONE) {
-        OPTIX_CHECK(optixSbtRecordPackHeader(
-            state.occlusion_metal_cube_prog_group,
-            &hgr[idx + 1]));
-    }else if (texture_id == GLASS) {
+    if (texture_id == GLASS) {
         OPTIX_CHECK(optixSbtRecordPackHeader(
             state.occlusion_glass_cube_prog_group,
             &hgr[idx + 1]));
@@ -1598,8 +1594,8 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 20u;
-    state.params.num_lights_sample = 10u;
+    state.params.samples_per_launch = 5u;
+    state.params.num_lights_sample = 1u;
     state.params.point_light_sum = static_cast<uint32_t>(g_light.size());
     CUDA_CHECK(cudaMalloc(
         reinterpret_cast<void**>(&state.params.point_light.data),
@@ -3560,7 +3556,7 @@ int main( int argc, char* argv[] )
 
 
                     //----------------------------sun updating----------------------------
-                    game_time = 2400;//fmod(circle / 4.f + glfwGetTime() , circle);
+                    game_time = 1200;//fmod(circle / 4.f + glfwGetTime() , circle);
                     float sunAngle = sunAngleScaling((game_time - circle / 4.f) / (circle / 4.f) * ( M_PI / 2.f) );
                     //std::cout << sunAngle << std::endl;
                     sky.setSunTheta(sunAngle);

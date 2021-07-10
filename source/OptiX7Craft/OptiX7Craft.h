@@ -54,17 +54,6 @@ struct BasicLight
     float3  pos;
     float3  color;
 
-    /*
-    BasicLight(float3& pos, float3& color): pos(pos), color(color) {
-        id = ++IDX;
-    }
-
-    BasicLight(const BasicLight& other) {
-        id = other.id;
-        pos = other.pos;
-        color = other.color;
-    }
-    */
 }; 
 
 struct DirectionalLight
@@ -289,8 +278,6 @@ struct SunPRD {
     float  importance;
     float3 attenuation;
     float3 radiance;
-    //float3 origin;
-    //float3 direction;
     float3 emitted;
     bool countEmitted;
 
