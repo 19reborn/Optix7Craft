@@ -69,7 +69,7 @@ bool              resize_dirty  = false;
 bool              minimized     = false;
 float lastframe = 0.f;
 float deltatime = 0.f;
-float circle = 3600.0f;
+float circle = 360.0f;
 float game_time;
 
 
@@ -1566,8 +1566,8 @@ void initLaunchParams( WhittedState& state )
     state.params.frame_buffer = nullptr; // Will be set when output buffer is mapped
 
     state.params.subframe_index = 0u;
-    state.params.samples_per_launch = 5u;
-    state.params.num_lights_sample = 3u;
+    state.params.samples_per_launch = 3u;
+    state.params.num_lights_sample = 1u;
     state.params.point_light_sum = static_cast<uint32_t>(g_light.size());
     CUDA_CHECK(cudaMalloc(
         reinterpret_cast<void**>(&state.params.point_light.data),
@@ -3443,7 +3443,7 @@ int main( int argc, char* argv[] )
 
 
                     //----------------------------sun updating----------------------------
-                    game_time = 1200;//fmod(circle / 4.f + glfwGetTime() , circle);
+                    game_time = fmod(circle / 4.f + glfwGetTime() , circle);
                     float sunAngle = sunAngleScaling((game_time - circle / 4.f) / (circle / 4.f) * ( M_PI / 2.f) );
                     //std::cout << sunAngle << std::endl;
                     sky.setSunTheta(sunAngle);
